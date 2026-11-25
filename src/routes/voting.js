@@ -13,7 +13,7 @@ async function requireActiveStudent(req, res, next) {
       [req.session.userId]
     );
     if (!result.rowCount || result.rows[0].account_status !== 'active') {
-      return res.status(403).json({ error: 'Your student account is not active.' });
+      return res.status(403).json({ error: 'You are not eligible to vote in this election or your account is not active.' });
     }
     next();
   } catch (error) { next(error); }
@@ -87,6 +87,16 @@ router.post('/:electionId/authorise', async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const election = await client.query(
+      `SELECT id FROM elections WHERE id=$1 AND status='voting_open'
+       AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
+       AND (voting_closes_at IS NULL OR voting_closes_at>=NOW()) FOR UPDATE`,
+      [req.params.electionId]
+    );
+    if (!election.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'Voting is not open for this election.' });
+    }
     const activeUser = await client.query(
       `SELECT id FROM users
        WHERE id=$1 AND account_status='active'
@@ -99,17 +109,7 @@ router.post('/:electionId/authorise', async (req, res, next) => {
     );
     if (!activeUser.rowCount) {
       await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Your student account is not active.' });
-    }
-    const election = await client.query(
-      `SELECT id FROM elections WHERE id=$1 AND status='voting_open'
-       AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
-       AND (voting_closes_at IS NULL OR voting_closes_at>=NOW()) FOR UPDATE`,
-      [req.params.electionId]
-    );
-    if (!election.rowCount) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ error: 'Voting is not open for this election.' });
+      return res.status(403).json({ error: 'You are not eligible to vote in this election or your account is not active.' });
     }
     const prior = await client.query(
       'SELECT 1 FROM voter_participation WHERE election_id=$1 AND voter_user_id=$2',
@@ -152,20 +152,6 @@ router.post('/:electionId/ballot', async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const activeUser = await client.query(
-      `SELECT id FROM users
-       WHERE id=$1 AND account_status='active'
-         AND NOT EXISTS (
-           SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
-         )
-       FOR UPDATE`,
-      [req.session.userId, req.params.electionId]
-    );
-    if (!activeUser.rowCount) {
-      await client.query('ROLLBACK');
-      return res.status(403).json({ error: 'Your student account is not active.' });
-    }
     const election = await client.query(
       `SELECT id FROM elections WHERE id=$1 AND status='voting_open'
        AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
@@ -186,6 +172,20 @@ router.post('/:electionId/ballot', async (req, res, next) => {
     if (!auth.rowCount) {
       await client.query('ROLLBACK');
       return res.status(401).json({ error: 'Voting authorisation is invalid, expired or already used. Request a new one.' });
+    }
+    const activeUser = await client.query(
+      `SELECT id FROM users
+       WHERE id=$1 AND account_status='active'
+         AND NOT EXISTS (
+           SELECT 1 FROM election_voter_eligibility ev
+           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
+         )
+       FOR UPDATE`,
+      [req.session.userId, req.params.electionId]
+    );
+    if (!activeUser.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'You are not eligible to vote in this election or your account is not active.' });
     }
     const prior = await client.query(
       'SELECT 1 FROM voter_participation WHERE election_id=$1 AND voter_user_id=$2',
