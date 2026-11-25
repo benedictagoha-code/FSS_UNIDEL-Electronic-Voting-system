@@ -39,7 +39,11 @@ const resetCompleteSchema = z.object({
   newPassword: passwordSchema
 });
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false });
+// Registration and login have separate budgets: a burst of new registrations
+// must not consume the sign-in allowance for other students behind the same
+// campus/NAT IP address.
+const registerLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false });
+const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-7', legacyHeaders: false });
 const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 5, standardHeaders: 'draft-7', legacyHeaders: false });
 
 function otpVerifier(userId, code) {
@@ -54,7 +58,7 @@ function safeEqualHex(a, b) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
-router.post('/register', authLimiter, async (req, res, next) => {
+router.post('/register', registerLimiter, async (req, res, next) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Please check the registration details.', details: parsed.error.flatten().fieldErrors });
 
@@ -89,7 +93,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
   }
 });
 
-router.post('/login', authLimiter, async (req, res, next) => {
+router.post('/login', loginLimiter, async (req, res, next) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Enter a valid matriculation/registration number and password.' });
   try {
