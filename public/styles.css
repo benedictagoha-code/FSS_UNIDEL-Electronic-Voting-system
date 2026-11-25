@@ -12,3 +12,15 @@
 
 
 .admin-election-item{border-bottom:1px solid #dfe7ee;padding:7px 2px}.admin-office-status{display:flex;flex-wrap:wrap;align-items:center;gap:9px;padding-left:12px}.unopposed-flag{display:inline-block;background:#b42318;color:#fff;border-radius:4px;padding:4px 8px;font-size:11px;font-weight:900;letter-spacing:.04em}.pending-nomination-flag{color:#8a4b08;background:#fff3d6;border-radius:4px;padding:3px 7px;font-size:10px;font-weight:700}
+
+
+.admin-candidate-name{font-size:11px;color:#526a7c;margin:3px 0 3px 14px}.print-election-button{margin:10px 0 4px}
+@media print{
+ body.printing-election{background:#fff}
+ body.printing-election *{visibility:hidden!important}
+ body.printing-election .print-selected,
+ body.printing-election .print-selected *{visibility:visible!important}
+ body.printing-election .print-selected{position:absolute!important;left:0!important;top:0!important;width:100%!important;border:0!important;background:#fff!important;padding:12mm!important;box-shadow:none!important}
+ body.printing-election .print-election-button{display:none!important}
+ body.printing-election .unopposed-flag{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#b42318!important;color:#fff!important}
+}
