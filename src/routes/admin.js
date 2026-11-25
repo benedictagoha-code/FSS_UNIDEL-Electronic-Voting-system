@@ -272,13 +272,24 @@ router.post('/elections/:id/offices', requireAdmin(['super_admin','election_admi
   }catch(e){if(e.code==='23505')return res.status(409).json({error:'That office already exists in this election.'});next(e);}
 });
 router.post('/elections/:id/open-nominations', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const client=await pool.connect();
   try{
-    const r=await pool.query("UPDATE elections SET status='nominations_open' WHERE id=$1 AND status='draft' AND EXISTS(SELECT 1 FROM election_offices WHERE election_id=$1) RETURNING id,title",
-      [req.params.id]);
-    if(!r.rowCount)return res.status(409).json({error:'Election must be a draft with at least one office before nominations can open.'});
-    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.nominations_opened','election',$2)",[req.session.userId,req.params.id]);
-    res.json({election:r.rows[0],message:'Nominations are now open.'});
-  }catch(e){next(e);}
+    await client.query('BEGIN');
+    const election=await client.query("SELECT id,title,status FROM elections WHERE id=$1 FOR UPDATE",[req.params.id]);
+    if(!election.rowCount||election.rows[0].status!=='draft'){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Election must be a draft before nominations can open.'});
+    }
+    const offices=await client.query('SELECT 1 FROM election_offices WHERE election_id=$1 LIMIT 1',[req.params.id]);
+    if(!offices.rowCount){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Create at least one office before opening nominations.'});
+    }
+    await client.query("UPDATE elections SET status='nominations_open' WHERE id=$1",[req.params.id]);
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.nominations_opened','election',$2)",[req.session.userId,req.params.id]);
+    await client.query('COMMIT');
+    res.json({election:election.rows[0],message:'Nominations are now open.'});
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.put('/nomination-payment-settings', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
   const p=paymentSettingsSchema.safeParse(req.body);
