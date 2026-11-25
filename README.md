@@ -104,7 +104,7 @@ The first backend foundation has been committed to `main`.
 
 ### Automated mock-election integration test
 
-The CI workflow starts a disposable PostgreSQL 16 service, applies migrations 001–005, and runs a full mock election through the HTTP API. The test covers:
+The CI workflow starts a disposable PostgreSQL 16 service, applies all numbered migrations, and runs a full mock election through the HTTP API. The test covers:
 - Student self-registration and duplicate matriculation-number rejection.
 - Administrator login and election/office creation.
 - Candidate nomination, manual payment verification and eligibility approval.
@@ -129,7 +129,7 @@ When `DATABASE_URL` is not set, Node's test runner skips the database integratio
 ### Important limitations at this stage
 - The application workflows and browser interfaces are implemented in the repository, but no public production website or election is deployed.
 - Termii is the selected SMS provider for password-reset OTPs. The adapter sends a transactional SMS through Termii's DND route to the registered phone number (E.164 is converted to digits-only international format). The API key and sender ID must be configured as server environment secrets; the sender ID must be approved, and Termii must activate DND/transactional messaging on the account. Until those account steps are complete, SMS delivery remains unavailable. The registrant's saved phone number remains the only OTP destination.
-- Numbered migrations 001–005 create the core schema, nomination/payment structures, voting authorisations, cross-election ballot integrity constraints and election-specific voter eligibility. The SQL has not yet been applied to a live database in this development session.
+- Numbered migrations create the core schema, nomination/payment structures, voting authorisations, cross-election ballot integrity constraints, election-specific voter eligibility, voter snapshots, append-only audit logs, election lifecycle guards, ballot immutability, unique payment references and database-enforced nomination/payment history protections. The SQL has not yet been applied to a live production database.
 - The public repository must contain no real student records, passwords, API keys, OTPs, receipts or production database credentials.
 
 
@@ -217,6 +217,10 @@ The database enforces one participation record per student per election and comp
 Election administrators must close nominations before scheduling voting. Every office must have at least one approved candidate. Voting can be closed by an authorised administrator, and results can only be published after closure. Published results show candidate vote totals and overall participation.
 
 **Privacy qualification:** This design prevents ordinary application administrators from looking up a student's choices through the application data model. It is not a cryptographic end-to-end secret-ballot protocol against a fully privileged database operator, server operator, collusion, or external coercion. Production deployment should use tightly restricted database access, independent security review, backups and monitoring.
+
+## Deployment preparation
+
+A production Dockerfile and deployment runbook are provided in `Dockerfile` and `docs/DEPLOYMENT.md`. The application is not yet deployed: it still requires a selected hosting provider, a production PostgreSQL database, HTTPS/domain configuration, server secrets, Termii account activation for SMS password resets, and one-time super-administrator bootstrap. Do not treat the GitHub repository or passing CI as a live election service.
 
 ## Build checks
 
