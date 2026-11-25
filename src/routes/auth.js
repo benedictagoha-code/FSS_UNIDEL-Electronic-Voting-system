@@ -181,9 +181,12 @@ router.post('/password-reset/request', resetLimiter, async (req, res, next) => {
     try {
       await sendPasswordResetOtp({ to: pendingDelivery.phone, code: pendingDelivery.code });
     } catch (smsError) {
-      // Remove the undelivered code so it cannot be used if a provider partially fails.
-      await pool.query('DELETE FROM password_reset_otps WHERE id=$1 AND user_id=$2',
-        [pendingDelivery.id, pendingDelivery.userId]);
+      // Consume the undelivered code so it cannot be used, while retaining
+      // its timestamp for per-account request throttling.
+      await pool.query(
+        'UPDATE password_reset_otps SET consumed_at=NOW() WHERE id=$1 AND user_id=$2',
+        [pendingDelivery.id, pendingDelivery.userId]
+      );
       console.error('Password-reset SMS delivery unavailable.');
     }
   }
