@@ -14,7 +14,7 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     import('../src/db.js')
   ]);
 
-  const databaseName = new URL(process.env.DATABASE_URL).pathname.replace(/^\\//,'');
+  const databaseName = new URL(process.env.DATABASE_URL).pathname.slice(1);
   assert.match(databaseName, /_test$/, 'integration tests may only run against a database whose name ends in _test');
 
   const tables = [
