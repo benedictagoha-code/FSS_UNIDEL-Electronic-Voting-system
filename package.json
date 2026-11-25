@@ -13,7 +13,7 @@
     "db:migrate": "node scripts/migrate.js",
     "test": "node --test",
     "admin:bootstrap": "node scripts/bootstrap-admin.js",
-    "check": "node --check src/server.js && node --check src/app.js && node --check src/routes/auth.js && node --check src/routes/admin.js && node --check src/routes/nominations.js && node --check src/routes/voting.js && node --check src/middleware/requireAdmin.js && node --check src/db.js && node --check scripts/migrate.js && node --check scripts/bootstrap-admin.js && node --check public/app.js && node --check test/election.integration.test.js"
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/routes/auth.js && node --check src/routes/admin.js && node --check src/routes/nominations.js && node --check src/routes/voting.js && node --check src/middleware/requireAdmin.js && node --check src/db.js && node --check scripts/migrate.js && node --check scripts/bootstrap-admin.js && node --check public/app.js && node --check test/election.integration.test.js && node --check test/termii.test.js"
   },
   "dependencies": {
     "argon2": "^0.41.1",
