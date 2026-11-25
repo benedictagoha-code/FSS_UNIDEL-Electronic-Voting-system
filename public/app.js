@@ -440,7 +440,27 @@ async function loadAdminElections(){
     card.classList.add('print-selected');document.body.classList.add('printing-election');
     window.print();document.body.classList.remove('printing-election');card.classList.remove('print-selected');
    });
-   card.append(printButton);box.append(card);
+   card.append(printButton);
+   const turnoutButton=document.createElement('button');turnoutButton.type='button';turnoutButton.className='secondary';turnoutButton.textContent='View participation statistics';
+   const turnoutBox=document.createElement('div');turnoutBox.className='participation-report';turnoutBox.hidden=true;
+   turnoutButton.addEventListener('click',async()=>{
+    turnoutBox.hidden=false;turnoutBox.textContent='Loading aggregate participation…';
+    try{
+     const report=await api('/api/admin/elections/'+encodeURIComponent(e.id)+'/participation');
+     turnoutBox.replaceChildren();
+     const summary=document.createElement('p');
+     summary.textContent='Eligible voters: '+report.eligibleVoters+' · Participation recorded: '+report.participatingVoters+' · Turnout: '+report.turnoutPercent+'%';
+     turnoutBox.append(summary);
+     (report.departments||[]).forEach(dept=>{
+      const line=document.createElement('p');
+      line.textContent=dept.department+': '+dept.participating_voters+' of '+dept.eligible_voters+' ('+(dept.eligible_voters?((dept.participating_voters*100/dept.eligible_voters).toFixed(1)):'0.0')+'%)';
+      turnoutBox.append(line);
+     });
+     const printReport=document.createElement('button');printReport.type='button';printReport.className='secondary';printReport.textContent='Print participation report';
+     printReport.addEventListener('click',()=>window.print());turnoutBox.append(printReport);
+    }catch(error){turnoutBox.textContent=error.message;}
+   });
+   card.append(turnoutButton,turnoutBox);box.append(card);
   });
  }catch(error){box.textContent=error.message;}
 }
