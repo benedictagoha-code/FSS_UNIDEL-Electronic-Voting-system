@@ -270,23 +270,36 @@ router.post('/elections', requireAdmin(['super_admin','election_admin']), async 
   if(!parsed.success) return res.status(400).json({error:'Provide a valid election title and nomination dates.'});
   const d=parsed.data;
   if(d.nominationOpensAt&&d.nominationClosesAt&&new Date(d.nominationClosesAt)<=new Date(d.nominationOpensAt)) return res.status(400).json({error:'Nomination closing time must be after opening time.'});
+  const client=await pool.connect();
   try{
-    const r=await pool.query(
+    await client.query('BEGIN');
+    const r=await client.query(
       "INSERT INTO elections(title,description,status,nomination_opens_at,nomination_closes_at,created_by) VALUES($1,$2,'draft',$3,$4,$5) RETURNING *",
       [d.title,d.description,d.nominationOpensAt||null,d.nominationClosesAt||null,req.session.userId]);
-    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.created','election',$2)",[req.session.userId,r.rows[0].id]);
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,'election.created','election',$2,$3::jsonb)",
+      [req.session.userId,r.rows[0].id,JSON.stringify({title:d.title,nominationOpensAt:d.nominationOpensAt||null,nominationClosesAt:d.nominationClosesAt||null})]);
+    await client.query('COMMIT');
     res.status(201).json({election:r.rows[0]});
-  }catch(e){next(e);}
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.post('/elections/:id/offices', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
   const p=officeSchema.safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Provide a valid office title, fee and number of seats.'});
+  const client=await pool.connect();
   try{
-    const r=await pool.query("INSERT INTO election_offices(election_id,title,nomination_fee_kobo,seats) SELECT id,$2,$3,$4 FROM elections WHERE id=$1 AND status='draft' RETURNING *",
+    await client.query('BEGIN');
+    const election=await client.query("SELECT id FROM elections WHERE id=$1 AND status='draft' FOR UPDATE",[req.params.id]);
+    if(!election.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Draft election not found.'});}
+    const r=await client.query(
+      "INSERT INTO election_offices(election_id,title,nomination_fee_kobo,seats) VALUES($1,$2,$3,$4) RETURNING *",
       [req.params.id,p.data.title,Math.round(p.data.nominationFeeNaira*100),p.data.seats]);
-    if(!r.rowCount)return res.status(404).json({error:'Draft election not found.'});
+    await client.query(
+      "INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,'election.office_created','election_office',$2,$3::jsonb)",
+      [req.session.userId,r.rows[0].id,JSON.stringify({electionId:req.params.id,title:p.data.title,seats:p.data.seats,nominationFeeNaira:p.data.nominationFeeNaira})]);
+    await client.query('COMMIT');
     res.status(201).json({office:r.rows[0]});
-  }catch(e){if(e.code==='23505')return res.status(409).json({error:'That office already exists in this election.'});next(e);}
+  }catch(e){await client.query('ROLLBACK');if(e.code==='23505')return res.status(409).json({error:'That office already exists in this election.'});next(e);}
+  finally{client.release();}
 });
 router.post('/elections/:id/open-nominations', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
   const client=await pool.connect();
