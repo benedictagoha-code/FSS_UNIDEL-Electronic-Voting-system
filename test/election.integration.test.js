@@ -136,11 +136,19 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     }});
     assert.equal(candidateLogin.status,200,'candidate should sign in');
 
-    const nominationResponse = await candidate('/api/nominations/',{method:'POST',body:{
+    const nominationPayload = {
       electionId,officeId,manifesto:'A test manifesto.',
       paymentChannel:'Zenith Bank',transactionReference:'MOCK-PAYMENT-REF-001'
-    }});
-    assert.equal(nominationResponse.status,201,'candidate should submit a nomination');
+    };
+    const simultaneousNominations = await Promise.all([
+      candidate('/api/nominations/',{method:'POST',body:nominationPayload}),
+      candidate('/api/nominations/',{method:'POST',body:nominationPayload})
+    ]);
+    assert.equal(simultaneousNominations.filter(x=>x.status===201).length,1,
+      'only one simultaneous nomination for the same office may be accepted');
+    assert.equal(simultaneousNominations.filter(x=>x.status===409).length,1,
+      'the concurrent duplicate nomination must be rejected');
+    const nominationResponse = simultaneousNominations.find(x=>x.status===201);
     const nominationId = nominationResponse.body.nomination.id;
 
     const payments = await admin('/api/admin/nomination-payments');
@@ -204,13 +212,18 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     assert.equal(authorisation.status,200,'eligible voter should receive a one-time authorisation token');
     assert.equal(authorisation.body.expiresInSeconds,600);
 
-    const cast = await candidate(`/api/voting/${electionId}/ballot`,{
-      method:'POST',body:{
-        authorisationToken:authorisation.body.authorisationToken,
-        selections:[{officeId,nominationIds:[candidateNomination]}]
-      }
-    });
-    assert.equal(cast.status,201,'valid ballot should be accepted');
+    const ballotPayload = {
+      authorisationToken:authorisation.body.authorisationToken,
+      selections:[{officeId,nominationIds:[candidateNomination]}]
+    };
+    const simultaneousBallots = await Promise.all([
+      candidate(`/api/voting/${electionId}/ballot`,{method:'POST',body:ballotPayload}),
+      candidate(`/api/voting/${electionId}/ballot`,{method:'POST',body:ballotPayload})
+    ]);
+    assert.equal(simultaneousBallots.filter(x=>x.status===201).length,1,
+      'only one simultaneous ballot submission may be accepted for a voter');
+    assert.equal(simultaneousBallots.filter(x=>x.status===401).length,1,
+      'the second simultaneous submission must find its authorisation consumed');
 
     const duplicateAuth = await candidate(`/api/voting/${electionId}/authorise`,{method:'POST',body:{}});
     assert.equal(duplicateAuth.status,409,'a voter must not receive a second ballot authorisation');
