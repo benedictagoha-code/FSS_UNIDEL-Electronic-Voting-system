@@ -289,11 +289,13 @@ router.post('/nominations/:id/eligibility', requireAdmin(['super_admin','electio
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const r=await client.query(`SELECT n.id,n.eligibility_status,p.verification_status
-      FROM nominations n LEFT JOIN nomination_payments p ON p.nomination_id=n.id
+    const r=await client.query(`SELECT n.id,n.eligibility_status,p.verification_status,e.status AS election_status
+      FROM nominations n JOIN elections e ON e.id=n.election_id
+      LEFT JOIN nomination_payments p ON p.nomination_id=n.id
       WHERE n.id=$1 FOR UPDATE OF n`,[req.params.id]);
     if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Nomination not found.'});}
     if(r.rows[0].eligibility_status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'This nomination has already been reviewed.'});}
+    if(r.rows[0].election_status!=='nominations_open'){await client.query('ROLLBACK');return res.status(409).json({error:'Candidate eligibility decisions must be completed before nominations close.'});}
     if(p.data.decision==='approved' && r.rows[0].verification_status!=='verified'){await client.query('ROLLBACK');return res.status(409).json({error:'Payment must be verified before candidate eligibility can be approved.'});}
     await client.query('UPDATE nominations SET eligibility_status=$1 WHERE id=$2',[p.data.decision,req.params.id]);
     await client.query(`INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
@@ -309,13 +311,30 @@ const votingWindowSchema = z.object({
   closesAt: z.string().datetime()
 });
 router.post('/elections/:id/close-nominations', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const client=await pool.connect();
   try{
-    const r=await pool.query("UPDATE elections SET status='nominations_closed' WHERE id=$1 AND status='nominations_open' RETURNING id,title",
-      [req.params.id]);
-    if(!r.rowCount)return res.status(409).json({error:'Only an election with open nominations can be closed for nominations.'});
-    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.nominations_closed','election',$2)",[req.session.userId,req.params.id]);
-    res.json({election:r.rows[0],message:'Nominations have closed.'});
-  }catch(e){next(e);}
+    await client.query('BEGIN');
+    const election=await client.query("SELECT id,title,status FROM elections WHERE id=$1 FOR UPDATE",[req.params.id]);
+    if(!election.rowCount||election.rows[0].status!=='nominations_open'){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Only an election with open nominations can be closed for nominations.'});
+    }
+    await client.query("UPDATE elections SET status='nominations_closed' WHERE id=$1",[req.params.id]);
+    const officeResult=await client.query(`SELECT o.id,o.title,
+      COUNT(n.id) FILTER (WHERE n.eligibility_status='approved')::int AS approved_count,
+      COUNT(n.id) FILTER (WHERE n.eligibility_status='pending')::int AS pending_count
+      FROM election_offices o
+      LEFT JOIN nominations n ON n.election_id=o.election_id AND n.office_id=o.id
+      WHERE o.election_id=$1 GROUP BY o.id,o.title ORDER BY o.title`,[req.params.id]);
+    const offices=officeResult.rows.map(o=>({
+      id:o.id,title:o.title,approvedCount:o.approved_count,pendingCount:o.pending_count,
+      unopposed:o.approved_count===1&&o.pending_count===0
+    }));
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,'election.nominations_closed','election',$2,$3::jsonb)",
+      [req.session.userId,req.params.id,JSON.stringify({unopposedOffices:offices.filter(o=>o.unopposed).map(o=>o.title)})]);
+    await client.query('COMMIT');
+    res.json({election:election.rows[0],offices,message:'Nominations have closed. Offices with exactly one approved candidate are marked UNOPPOSED.'});
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.post('/elections/:id/open-voting', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
   const p=votingWindowSchema.safeParse(req.body);
@@ -361,7 +380,18 @@ router.post('/elections/:id/publish-results', requireAdmin(['super_admin','resul
 });
 router.get('/elections', requireAdmin(['super_admin','election_admin','results_officer']), async(req,res,next)=>{
   try{
-    const r=await pool.query("SELECT id,title,status,nomination_opens_at,nomination_closes_at,voting_opens_at,voting_closes_at FROM elections ORDER BY created_at DESC");
+    const r=await pool.query(`SELECT e.id,e.title,e.status,e.nomination_opens_at,e.nomination_closes_at,e.voting_opens_at,e.voting_closes_at,
+      COALESCE((SELECT json_agg(json_build_object(
+        'id',o.id,'title',o.title,
+        'approvedCount',(SELECT COUNT(*)::int FROM nominations na WHERE na.office_id=o.id AND na.eligibility_status='approved'),
+        'pendingCount',(SELECT COUNT(*)::int FROM nominations np WHERE np.office_id=o.id AND np.eligibility_status='pending'),
+        'unopposed',(
+          (SELECT COUNT(*) FROM nominations nu WHERE nu.office_id=o.id AND nu.eligibility_status='approved')=1
+          AND (SELECT COUNT(*) FROM nominations nx WHERE nx.office_id=o.id AND nx.eligibility_status='pending')=0
+          AND e.status IN ('nominations_closed','voting_open','closed','results_published')
+        )
+      ) ORDER BY o.title) FROM election_offices o WHERE o.election_id=e.id),'[]'::json) AS offices
+      FROM elections e ORDER BY e.created_at DESC`);
     res.json({elections:r.rows});
   }catch(e){next(e);}
 });
