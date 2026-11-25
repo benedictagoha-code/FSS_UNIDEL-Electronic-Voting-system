@@ -88,3 +88,8 @@ The implementation reduces ordinary application-level linkage. It does not claim
 ## Password-reset session revocation
 
 After a password reset is successfully verified, the application updates the Argon2id password hash, consumes outstanding reset codes, and deletes all persisted login sessions belonging to that account. The user must authenticate again with the new password on every device. This reduces the risk that a stolen or unattended session remains usable after account recovery.
+
+
+## Database-enforced election lifecycle
+
+PostgreSQL enforces the election status sequence: draft → nominations open → nominations closed → voting open → closed → results published. Cancellation is permitted only before voting begins. Skipping a stage or reopening a completed stage is rejected by a database trigger. Election title, description and nomination-window settings become immutable once nominations have opened. Office creation, modification and deletion are restricted to draft elections. These protections apply even if an application route is bypassed.
