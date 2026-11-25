@@ -287,6 +287,17 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const publish = await admin(`/api/admin/elections/${electionId}/publish-results`,{method:'POST',body:{}});
     assert.equal(publish.status,200,'authorised admin should publish results');
 
+    const auditRegister = await admin('/api/admin/audit-logs?limit=100');
+    assert.equal(auditRegister.status,200,'super administrator should access the read-only audit register');
+    assert.ok(auditRegister.body.logs.some(row=>row.action==='election.results_published'),
+      'results publication must appear in the audit register');
+    assert.ok(auditRegister.body.logs.some(row=>row.action==='voting.ballot_cast'),
+      'ballot participation event should be auditable');
+    assert.ok(!JSON.stringify(auditRegister.body).includes(candidateNomination),
+      'audit register must not expose ballot candidate selections');
+    const candidateAuditAccess = await candidate('/api/admin/audit-logs');
+    assert.equal(candidateAuditAccess.status,403,'ordinary students must not access the audit register');
+
     const results = await candidate(`/api/voting/${electionId}/results`);
     assert.equal(results.status,200,'published results should become visible');
     assert.equal(results.body.totalVoters,2,'results should report both the student and eligible student-administrator participation records');
