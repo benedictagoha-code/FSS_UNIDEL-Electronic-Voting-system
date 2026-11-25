@@ -4,7 +4,7 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Project status
 
-**Early implementation stage.** The repository now contains a Node.js/Express backend foundation, PostgreSQL schema, student authentication API, protected administrator API and a responsive student portal. No production database, SMS gateway, payment processing, live election or voting service is deployed.
+**Implementation in progress; not production-ready.** The repository contains a Node.js/Express application, PostgreSQL migrations, student registration/login/password-reset flows, administration tools, nominations and manual payment review, election lifecycle controls, secret-ballot submission, voter eligibility administration and aggregate participation reporting. No production database, SMS gateway, payment integration, hosting or live election is configured. Database integration tests, independent security review and a mock election remain outstanding.
 
 ## Agreed functional requirements
 
@@ -103,9 +103,9 @@ The first backend foundation has been committed to `main`.
 6. Run `npm run dev` and check `http://localhost:3000/api/health`.
 
 ### Important limitations at this stage
-- This is a backend foundation, not a finished voting website. No public registration page, admin dashboard, nomination form, payment processing, ballot interface or deployment is live yet.
+- The application workflows and browser interfaces are implemented in the repository, but no public production website or election is deployed.
 - SMS delivery is intentionally disabled until a specific gateway is selected and its adapter is implemented and tested. The registrant's saved phone number is the intended OTP destination; it is not itself the SMS delivery provider.
-- The initial migration creates the core data structures. Election workflows, authorisation policies, ballot submission transactions, independent security tests and deployment hardening still need to be implemented before an actual election.
+- Numbered migrations 001–005 create the core schema, nomination/payment structures, voting authorisations, cross-election ballot integrity constraints and election-specific voter eligibility. The SQL has not yet been applied to a live database in this development session.
 - The public repository must contain no real student records, passwords, API keys, OTPs, receipts or production database credentials.
 
 
@@ -163,9 +163,9 @@ Payment verification and candidate eligibility are deliberately separate adminis
 
 ## Secret ballot voting
 
-The voting module separates voter participation from ballot selections. Students authenticate with their registered accounts and request a short-lived, single-use voting authorisation. The server stores only a hash of that authorisation alongside the voter identity. On submission, the server validates the authorisation and eligibility, writes the anonymous ballot and the voter participation record in the same database transaction, and consumes the authorisation. The ballot and selection tables contain no student/user identifier, and the ballot timestamp column is removed to reduce straightforward time-based correlation.
+The voting module separates voter participation from ballot selections. Students authenticate with their registered accounts and request a short-lived, single-use voting authorisation. The server stores only a hash of that authorisation alongside the voter identity. On submission, the server validates the authorisation and eligibility, writes the anonymous ballot and the voter participation record in the same database transaction, and consumes the authorisation. The ballot and selection tables contain no student/user identifier. However, ballot and participation records retain timestamps, so a privileged operator with database access may be able to infer correlations from timing and other operational data.
 
-The database enforces one participation record per student per election. Ballot submission validates that every office belongs to the election, each selected nomination is approved for that office, and selections do not exceed the configured seat count. Ballot selections cannot be edited through the application.
+The database enforces one participation record per student per election and composite foreign-key constraints tying every ballot selection to an office and nomination in the same election. Active accounts are eligible by default unless an election administrator records an exclusion for that election. Eligibility changes are locked once voting opens. Ballot submission validates approved nominations and seat limits. Ballot selections cannot be edited through the application. Administrators can view aggregate turnout overall and by department without access to individual ballot choices.
 
 Election administrators must close nominations before scheduling voting. Every office must have at least one approved candidate. Voting can be closed by an authorised administrator, and results can only be published after closure. Published results show candidate vote totals and overall participation.
 
