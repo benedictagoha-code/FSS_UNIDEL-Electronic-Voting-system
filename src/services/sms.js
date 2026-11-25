@@ -46,6 +46,7 @@ export async function sendPasswordResetOtp({ to, code }) {
   try {
     const response = await fetch(`${baseUrl}/api/sms/send`, {
       method: 'POST',
+      redirect: 'error',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
