@@ -14,6 +14,9 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     import('../src/db.js')
   ]);
 
+  const databaseName = new URL(process.env.DATABASE_URL).pathname.replace(/^\\//,'');
+  assert.match(databaseName, /_test$/, 'integration tests may only run against a database whose name ends in _test');
+
   const tables = [
     'audit_logs','moderation_actions','election_voter_eligibility','voting_authorisations',
     'ballot_selections','ballots','voter_participation','nomination_documents',
@@ -91,6 +94,12 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       phoneNumber:'+2348010000003',password:'Voter-Test-Password-2026'
     });
     assert.equal(excludedReg.status,201,'voter self-registration should succeed');
+    const duplicateRegistration = await register({
+      fullName:'Duplicate Test Student',sex:'Female',department:'Psychology',level:'400',
+      matricType:'matriculation',matricNumber:'PSY-TEST-4001',
+      phoneNumber:'+2348010000004',password:'Candidate-Test-Password-2026'
+    });
+    assert.equal(duplicateRegistration.status,409,'duplicate matriculation numbers must be rejected');
 
     const electionResponse = await admin('/api/admin/elections', { method:'POST', body:{
       title:'Automated Mock Faculty Election',description:'Non-production integration test'
@@ -216,6 +225,25 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
        WHERE table_schema='public' AND table_name='ballot_selections'`
     );
     assert.ok(!ballotSelectionSchema.rows.some(row=>row.column_name==='voter_user_id'),'ballot selections must not store voter identity');
+
+    const secondElection = await admin('/api/admin/elections',{method:'POST',body:{
+      title:'Second Mock Election for Constraint Test',description:'Cross-election reference rejection test'
+    }});
+    assert.equal(secondElection.status,201);
+    const secondOffice = await admin(`/api/admin/elections/${secondElection.body.election.id}/offices`,{
+      method:'POST',body:{title:'Second Mock Office',nominationFeeNaira:0,seats:1}
+    });
+    assert.equal(secondOffice.status,201);
+    const ballotRow = await pool.query('SELECT id FROM ballots WHERE election_id=$1',[electionId]);
+    await assert.rejects(
+      pool.query(
+        `INSERT INTO ballot_selections(ballot_id,election_id,office_id,candidate_nomination_id)
+         VALUES($1,$2,$3,$4)`,
+        [ballotRow.rows[0].id,secondElection.body.election.id,secondOffice.body.office.id,nominationId]
+      ),
+      error => error.code==='23503',
+      'database must reject a ballot selection tied to another election'
+    );
 
   } finally {
     if (server) await new Promise(resolve=>server.close(resolve));
