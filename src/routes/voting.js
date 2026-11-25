@@ -9,7 +9,7 @@ async function requireActiveStudent(req, res, next) {
   if (!req.session.userId) return res.status(401).json({ error: 'Sign in to continue.' });
   try {
     const result = await pool.query(
-      "SELECT id, account_status FROM users WHERE id=$1",
+      "SELECT u.id, u.account_status FROM users u JOIN student_profiles sp ON sp.user_id=u.id WHERE u.id=$1",
       [req.session.userId]
     );
     if (!result.rowCount || result.rows[0].account_status !== 'active') {
@@ -98,8 +98,9 @@ router.post('/:electionId/authorise', async (req, res, next) => {
       return res.status(409).json({ error: 'Voting is not open for this election.' });
     }
     const activeUser = await client.query(
-      `SELECT id FROM users
-       WHERE id=$1 AND account_status='active'
+      `SELECT u.id FROM users u
+       JOIN student_profiles sp ON sp.user_id=u.id
+       WHERE u.id=$1 AND u.account_status='active'
          AND NOT EXISTS (
            SELECT 1 FROM election_voter_eligibility ev
            WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
@@ -174,8 +175,9 @@ router.post('/:electionId/ballot', async (req, res, next) => {
       return res.status(401).json({ error: 'Voting authorisation is invalid, expired or already used. Request a new one.' });
     }
     const activeUser = await client.query(
-      `SELECT id FROM users
-       WHERE id=$1 AND account_status='active'
+      `SELECT u.id FROM users u
+       JOIN student_profiles sp ON sp.user_id=u.id
+       WHERE u.id=$1 AND u.account_status='active'
          AND NOT EXISTS (
            SELECT 1 FROM election_voter_eligibility ev
            WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
