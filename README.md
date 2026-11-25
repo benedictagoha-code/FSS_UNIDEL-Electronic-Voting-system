@@ -4,7 +4,7 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Project status
 
-**Foundation / requirements stage.** This repository currently contains the project specification only. No live election, production database, payment processing or voting service is deployed.
+**Early implementation stage.** The repository now contains a Node.js/Express backend foundation, PostgreSQL schema, student authentication API, protected administrator API and a responsive student portal. No production database, SMS gateway, payment processing, live election or voting service is deployed.
 
 ## Agreed functional requirements
 
@@ -128,3 +128,18 @@ npm run admin:bootstrap -- MATRIC_OR_REGISTRATION_NUMBER
 ```
 
 Confirm with `YES` at the prompt. Remove the temporary environment variable after the command completes. This command requires direct access to the trusted server/database environment; never run it from a public browser or commit the confirmation value.
+
+
+## Student portal interface
+
+A responsive web interface is now served from the application root (`/`).
+
+- Student registration form with required student details and password confirmation.
+- Registration OTP is not requested.
+- Student sign-in uses the matriculation/registration number and password.
+- Password recovery guides the student through requesting an SMS code and submitting the code with a new password. The server sends only to the saved account phone number when a configured SMS adapter is available.
+- Authenticated student dashboard displays the student's name, student number, department and level.
+- Restricted administrator panel supports account search and moderation actions through the protected admin API.
+- Frontend assets are served locally; no third-party JavaScript or CSS CDN is used.
+
+The department choices in the initial form are a starter list and must be checked against the Faculty's approved current structure before public launch.
