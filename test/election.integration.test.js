@@ -300,6 +300,12 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const payment = payments.body.payments.find(item => item.nomination_id===nominationId);
     assert.ok(payment,'payment record should be visible to finance administrators');
 
+    await assert.rejects(
+      () => pool.query("UPDATE nominations SET eligibility_status='approved' WHERE id=$1",[nominationId]),
+      error => error.code==='55000',
+      'database must reject candidate approval before payment verification'
+    );
+
     const secondCandidateReg = await register({
       fullName:'Second Test Candidate',sex:'Male',department:'Sociology',level:'400',
       matricType:'matriculation',matricNumber:'SOC-TEST-4002',
