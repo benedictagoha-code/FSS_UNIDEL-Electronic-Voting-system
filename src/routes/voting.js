@@ -48,9 +48,9 @@ router.get('/:electionId/ballot', async (req, res, next) => {
        WHERE id=$1 AND status='voting_open'
          AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
          AND (voting_closes_at IS NULL OR voting_closes_at>=NOW())
-         AND NOT EXISTS (
-           SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=elections.id AND ev.voter_user_id=$2 AND ev.eligible=FALSE
+         AND EXISTS (
+           SELECT 1 FROM election_voter_snapshots vs
+           WHERE vs.election_id=elections.id AND vs.voter_user_id=$2
          )`,
       [req.params.electionId, req.session.userId]
     );
@@ -101,9 +101,9 @@ router.post('/:electionId/authorise', async (req, res, next) => {
       `SELECT u.id FROM users u
        JOIN student_profiles sp ON sp.user_id=u.id
        WHERE u.id=$1 AND u.account_status='active'
-         AND NOT EXISTS (
-           SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=$2 AND ev.voter_user_id=u.id AND ev.eligible=FALSE
+         AND EXISTS (
+           SELECT 1 FROM election_voter_snapshots vs
+           WHERE vs.election_id=$2 AND vs.voter_user_id=u.id
          )
        FOR UPDATE`,
       [req.session.userId, req.params.electionId]
@@ -178,9 +178,9 @@ router.post('/:electionId/ballot', async (req, res, next) => {
       `SELECT u.id FROM users u
        JOIN student_profiles sp ON sp.user_id=u.id
        WHERE u.id=$1 AND u.account_status='active'
-         AND NOT EXISTS (
-           SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=$2 AND ev.voter_user_id=u.id AND ev.eligible=FALSE
+         AND EXISTS (
+           SELECT 1 FROM election_voter_snapshots vs
+           WHERE vs.election_id=$2 AND vs.voter_user_id=u.id
          )
        FOR UPDATE`,
       [req.session.userId, req.params.electionId]
