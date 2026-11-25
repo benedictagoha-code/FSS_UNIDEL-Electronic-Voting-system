@@ -10,6 +10,14 @@
 - Changing a registered phone number requires an administrator-controlled recovery procedure.
 - Because no official student register is required, administrators must be able to review and suspend questionable registrations before voting opens. A matriculation number alone does not cryptographically prove identity.
 
+## Election configuration controls
+
+- Election creation and office creation are committed together with their audit events; a failed audit insert rolls back the configuration change.
+- Office creation locks the draft election row and checks its state inside the same transaction. It cannot race with opening nominations.
+- The database lifecycle trigger independently rejects changes to election details or offices after nominations open.
+- Election schedule transitions lock the election row and validate the current state before changing it. The voter roll is snapshotted in the same transaction that activates the voting schedule.
+- Configuration actions are attributable through append-only audit events; audit metadata records the election/office details needed to review the change without exposing ballot selections.
+
 ## Administrative role separation
 
 - Super administrators manage administrator roles, review the full audit register, configure elections and payment settings, moderate accounts, and authorise results publication.
