@@ -9,6 +9,7 @@ import { pool } from './db.js';
 import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 import nominationRoutes from './routes/nominations.js';
+import votingRoutes from './routes/voting.js';
 
 const app = express();
 const publicDir = join(dirname(fileURLToPath(import.meta.url)), '../public');
@@ -47,6 +48,7 @@ app.get('/api/health', async (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/nominations', nominationRoutes);
+app.use('/api/voting', votingRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((error, _req, res, _next) => {
