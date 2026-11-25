@@ -221,6 +221,20 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'only one simultaneous administrator request may open nominations');
     assert.equal(concurrentOpenNominations.filter(x=>x.status===409).length,1,
       'the competing request must observe the already-open election');
+    const setupAudit = await pool.query(
+      `SELECT action FROM audit_logs
+       WHERE entity_id = $1 AND action IN ('election.created','election.office_created')
+       ORDER BY action`,
+      [electionId]
+    );
+    assert.deepEqual(setupAudit.rows.map(x=>x.action).sort(),
+      ['election.created','election.office_created'].sort(),
+      'election and office creation must each have an audit event');
+    const lateOfficeEndpoint = await admin(`/api/admin/elections/${electionId}/offices`,{
+      method:'POST',body:{title:'Late Endpoint Office',nominationFeeNaira:0,seats:1}
+    });
+    assert.equal(lateOfficeEndpoint.status,404,
+      'the office API must refuse configuration changes after nominations open');
     const openNominations=concurrentOpenNominations.find(x=>x.status===200);
     // Database-level lifecycle guards must reject configuration changes after nominations open.
     await assert.rejects(
