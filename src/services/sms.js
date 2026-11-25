@@ -13,7 +13,7 @@ function termiiConfig() {
   if (!baseUrl) throw new Error('TERMII_BASE_URL is not configured; use the base URL shown in the Termii dashboard.');
 
   if (!apiKey) throw new Error('TERMII_API_KEY is not configured.');
-  if (!senderId || !/^[A-Za-z0-9 -]{3,11}$/.test(senderId)) {
+  if (!senderId || !/^[A-Za-z0-9]{3,11}$/.test(senderId)) {
     throw new Error('TERMII_SENDER_ID must be 3 to 11 alphanumeric characters.');
   }
 
