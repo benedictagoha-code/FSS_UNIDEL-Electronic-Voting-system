@@ -384,6 +384,11 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'database must reject edits to submitted payment details'
     );
     await assert.rejects(
+      () => pool.query("UPDATE nomination_payments SET verified_by=$1,verified_at=NOW() WHERE nomination_id=$2",[adminId,withdrawalId]),
+      error => error.code==='55000',
+      'database must reject changes to payment review attribution without a status transition'
+    );
+    await assert.rejects(
       () => pool.query("UPDATE nominations SET manifesto='Altered after submission' WHERE id=$1",[withdrawalId]),
       error => error.code==='55000',
       'database must reject edits to submitted nomination details'
