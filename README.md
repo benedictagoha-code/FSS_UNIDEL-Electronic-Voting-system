@@ -102,6 +102,30 @@ The first backend foundation has been committed to `main`.
 5. Run `npm run db:migrate`.
 6. Run `npm run dev` and check `http://localhost:3000/api/health`.
 
+### Automated mock-election integration test
+
+The CI workflow starts a disposable PostgreSQL 16 service, applies migrations 001–005, and runs a full mock election through the HTTP API. The test covers:
+- Student self-registration and duplicate matriculation-number rejection.
+- Administrator login and election/office creation.
+- Candidate nomination, manual payment verification and eligibility approval.
+- Individual voter exclusion before voting opens.
+- Nomination closure and the UNOPPOSED flag.
+- Ballot access restrictions, one-time authorisation and accepted ballot submission.
+- Duplicate-vote prevention, aggregate turnout, unpublished-results protection and results publication.
+- Database-level rejection of cross-election ballot references.
+- Confirmation that ballot and ballot-selection tables do not contain voter identity columns.
+
+The integration test is deliberately destructive to its database and refuses to run unless the database name ends in `_test`. CI uses a dedicated `fss_voting_test` database. To run locally, create a disposable test database with a name ending in `_test`, set `DATABASE_URL`, `SESSION_SECRET` and `OTP_PEPPER`, then run:
+
+```bash
+npm install
+npm run db:migrate
+npm run check
+npm test
+```
+
+When `DATABASE_URL` is not set, Node's test runner skips the database integration test. A successful CI run is a development check, not a substitute for independent security review, load testing or a supervised mock election.
+
 ### Important limitations at this stage
 - The application workflows and browser interfaces are implemented in the repository, but no public production website or election is deployed.
 - SMS delivery is intentionally disabled until a specific gateway is selected and its adapter is implemented and tested. The registrant's saved phone number is the intended OTP destination; it is not itself the SMS delivery provider.
