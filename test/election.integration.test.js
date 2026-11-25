@@ -52,6 +52,20 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     const base = `http://127.0.0.1:${server.address().port}`;
 
+    const crossOrigin = await fetch(base + '/api/auth/register', {
+      method: 'POST',
+      headers: { origin: 'https://attacker.example', 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(crossOrigin.status, 403, 'cross-origin state changes must be rejected');
+
+    const sameOrigin = await fetch(base + '/api/auth/register', {
+      method: 'POST',
+      headers: { origin: base, 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(sameOrigin.status, 400, 'same-origin request should reach input validation');
+
     function client() {
       let cookie = '';
       return async (path, options = {}) => {
