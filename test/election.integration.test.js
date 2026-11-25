@@ -187,6 +187,11 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     assert.equal(openVoting.status,200,'admin should open voting after nominations close');
 
+    const lockedEligibility = await admin(`/api/admin/elections/${electionId}/voters/${excludedUser.id}/eligibility`,{
+      method:'PUT',body:{eligible:true,reason:'Attempted change after voting started'}
+    });
+    assert.equal(lockedEligibility.status,409,'voter eligibility must lock after the actual voting start time');
+
     const excludedBallot = await excluded(`/api/voting/${electionId}/ballot`);
     assert.equal(excludedBallot.status,404,'excluded voter must not retrieve the ballot');
     const excludedAuth = await excluded(`/api/voting/${electionId}/authorise`,{method:'POST',body:{}});
