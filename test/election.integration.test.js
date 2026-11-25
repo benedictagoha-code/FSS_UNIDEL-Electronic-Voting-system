@@ -260,8 +260,22 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const hiddenResults = await candidate(`/api/voting/${electionId}/results`);
     assert.equal(hiddenResults.status,404,'results must remain hidden before publication');
 
-    const closeVoting = await admin(`/api/admin/elections/${electionId}/close-voting`,{method:'POST',body:{}});
-    assert.equal(closeVoting.status,200,'admin should close voting');
+    const unreasonedEarlyClose = await admin(`/api/admin/elections/${electionId}/close-voting`,{method:'POST',body:{}});
+    assert.equal(unreasonedEarlyClose.status,409,
+      'voting before its scheduled close must require a documented reason');
+    const closeVoting = await admin(`/api/admin/elections/${electionId}/close-voting`,{
+      method:'POST',body:{reason:'Emergency closure for the integration test.'}
+    });
+    assert.equal(closeVoting.status,200,'authorised early closure with a reason should succeed');
+    assert.equal(closeVoting.body.earlyClose,true,'the API should identify an early closure');
+    const earlyCloseAudit = await pool.query(
+      `SELECT metadata FROM audit_logs WHERE entity_type='election' AND entity_id=$1 AND action='election.voting_closed' ORDER BY id DESC LIMIT 1`,
+      [electionId]
+    );
+    assert.equal(earlyCloseAudit.rows[0].metadata.earlyClose,true,
+      'early closure must be recorded in the audit trail');
+    assert.equal(earlyCloseAudit.rows[0].metadata.reason,'Emergency closure for the integration test.',
+      'the reason for early closure must be retained in the audit trail');
     const publish = await admin(`/api/admin/elections/${electionId}/publish-results`,{method:'POST',body:{}});
     assert.equal(publish.status,200,'authorised admin should publish results');
 
