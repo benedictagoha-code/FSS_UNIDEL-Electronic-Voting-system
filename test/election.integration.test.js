@@ -300,6 +300,32 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const payment = payments.body.payments.find(item => item.nomination_id===nominationId);
     assert.ok(payment,'payment record should be visible to finance administrators');
 
+    const secondCandidateReg = await register({
+      fullName:'Second Test Candidate',sex:'Male',department:'Sociology',level:'400',
+      matricType:'matriculation',matricNumber:'SOC-TEST-4002',
+      phoneNumber:'+2348010000006',password:'Second-Candidate-Test-Password-2026'
+    });
+    assert.equal(secondCandidateReg.status,201,'second candidate registration should succeed');
+    const reusedPaymentReference = await client();
+    const secondCandidateLogin = await reusedPaymentReference('/api/auth/login',{method:'POST',body:{
+      matricNumber:'SOC-TEST-4002',password:'Second-Candidate-Test-Password-2026'
+    }});
+    assert.equal(secondCandidateLogin.status,200,'second candidate should sign in');
+    const duplicatePaymentReference = await reusedPaymentReference('/api/nominations/',{
+      method:'POST',body:{
+        electionId,officeId,manifesto:'A second test manifesto.',
+        paymentChannel:'Zenith Bank',transactionReference:'mock-payment-ref-001'
+      }
+    });
+    assert.equal(duplicatePaymentReference.status,409,
+      'a payment transaction reference must not be reused for another nomination');
+    const nominationPaymentCount = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM nomination_payments WHERE transaction_reference ILIKE $1',
+      ['MOCK-PAYMENT-REF-001']
+    );
+    assert.equal(nominationPaymentCount.rows[0].count,1,
+      'duplicate payment reference must not create a second payment record');
+
     const simultaneousPaymentDecisions = await Promise.all([
       admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
         method:'POST',body:{decision:'verified',reason:'Mock payment verified for integration test.'}
