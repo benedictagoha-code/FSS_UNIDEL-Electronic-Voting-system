@@ -264,4 +264,43 @@ router.post('/nomination-payments/:id/decision', requireAdmin(['super_admin','fi
   }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 
+
+const nominationDecisionSchema = z.object({
+  decision: z.enum(['approved','rejected']),
+  reason: z.string().trim().min(5).max(1000)
+});
+router.get('/nominations', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  try{
+    const status=['pending','approved','rejected','withdrawn'].includes(req.query.status)?req.query.status:null;
+    const r=await pool.query(`SELECT n.id,n.reference,n.eligibility_status,n.submitted_at,n.candidate_user_id,
+      e.title AS election_title,o.title AS office_title,s.full_name,u.matric_number,s.department,
+      p.verification_status,p.amount_kobo
+      FROM nominations n JOIN elections e ON e.id=n.election_id JOIN election_offices o ON o.id=n.office_id
+      JOIN users u ON u.id=n.candidate_user_id JOIN student_profiles s ON s.user_id=u.id
+      LEFT JOIN nomination_payments p ON p.nomination_id=n.id
+      WHERE ($1::text IS NULL OR n.eligibility_status=$1)
+      ORDER BY CASE n.eligibility_status WHEN 'pending' THEN 0 ELSE 1 END,n.submitted_at DESC LIMIT 250`,[status]);
+    res.json({nominations:r.rows});
+  }catch(e){next(e);}
+});
+router.post('/nominations/:id/eligibility', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const p=nominationDecisionSchema.safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Provide an eligibility decision and reason.'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const r=await client.query(`SELECT n.id,n.eligibility_status,p.verification_status
+      FROM nominations n LEFT JOIN nomination_payments p ON p.nomination_id=n.id
+      WHERE n.id=$1 FOR UPDATE OF n`,[req.params.id]);
+    if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Nomination not found.'});}
+    if(r.rows[0].eligibility_status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'This nomination has already been reviewed.'});}
+    if(p.data.decision==='approved' && r.rows[0].verification_status!=='verified'){await client.query('ROLLBACK');return res.status(409).json({error:'Payment must be verified before candidate eligibility can be approved.'});}
+    await client.query('UPDATE nominations SET eligibility_status=$1 WHERE id=$2',[p.data.decision,req.params.id]);
+    await client.query(`INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES($1,$2,'nomination',$3,$4::jsonb)`,[req.session.userId,'nomination.eligibility_'+p.data.decision,req.params.id,JSON.stringify({reason:p.data.reason})]);
+    await client.query('COMMIT');
+    res.json({message:'Candidate eligibility decision recorded.'});
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
+});
+
 export default router;
