@@ -122,6 +122,27 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const financeCannotReadAudit = await finance('/api/admin/audit-logs');
     assert.equal(financeCannotReadAudit.status,403,'finance role must not read the super-admin audit register');
 
+    const moderatorHash = await argon2.hash('Moderator-Test-Password-2026', { type: argon2.argon2id });
+    const moderatorUser = await pool.query(
+      `INSERT INTO users(matric_number,phone_e164,password_hash)
+       VALUES('MODERATOR-TEST-001','+2348010000092',$1) RETURNING id`,
+      [moderatorHash]
+    );
+    await pool.query(
+      "INSERT INTO admin_roles(user_id,role,granted_by) VALUES($1,'moderator',$2)",
+      [moderatorUser.rows[0].id,adminId]
+    );
+    const moderator = client();
+    const moderatorLogin = await moderator('/api/auth/login', {
+      method:'POST', body:{ matricNumber:'MODERATOR-TEST-001', password:'Moderator-Test-Password-2026' }
+    });
+    assert.equal(moderatorLogin.status,200,'moderator should sign in');
+    const moderatorCannotSuspendFinanceAdmin = await moderator(`/api/admin/users/${financeId}/moderation`, {
+      method:'POST',body:{action:'suspend',reason:'Test role boundary restriction.'}
+    });
+    assert.equal(moderatorCannotSuspendFinanceAdmin.status,403,
+      'moderators must not suspend or otherwise moderate administrator accounts');
+
     const register = async (record) => {
       const response = await fetch(base + '/api/auth/register', {
         method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(record)
