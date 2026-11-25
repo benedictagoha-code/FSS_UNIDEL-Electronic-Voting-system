@@ -4,7 +4,7 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Project status
 
-**Implementation in progress; not production-ready.** The repository contains a Node.js/Express application, PostgreSQL migrations, student registration/login/password-reset flows, administration tools, nominations and manual payment review, election lifecycle controls, secret-ballot submission, voter eligibility administration and aggregate participation reporting. No production database, SMS gateway, payment integration, hosting or live election is configured. Database integration tests, independent security review and a mock election remain outstanding.
+**Implementation in progress; not production-ready.** The repository contains a Node.js/Express application, PostgreSQL migrations, student registration/login/password-reset flows, administration tools, nominations and manual payment review, election lifecycle controls, secret-ballot submission, voter eligibility administration and aggregate participation reporting. Termii SMS adapter is implemented but not yet connected to a live Termii account; no production database, payment integration, hosting or live election is configured. Database integration tests, independent security review and a mock election remain outstanding.
 
 ## Agreed functional requirements
 
@@ -128,7 +128,7 @@ When `DATABASE_URL` is not set, Node's test runner skips the database integratio
 
 ### Important limitations at this stage
 - The application workflows and browser interfaces are implemented in the repository, but no public production website or election is deployed.
-- SMS delivery is intentionally disabled until a specific gateway is selected and its adapter is implemented and tested. The registrant's saved phone number is the intended OTP destination; it is not itself the SMS delivery provider.
+- Termii is the selected SMS provider for password-reset OTPs. The adapter sends a transactional SMS through Termii's DND route to the registered phone number (E.164 is converted to digits-only international format). The API key and sender ID must be configured as server environment secrets; the sender ID must be approved, and Termii must activate DND/transactional messaging on the account. Until those account steps are complete, SMS delivery remains unavailable. The registrant's saved phone number remains the only OTP destination.
 - Numbered migrations 001–005 create the core schema, nomination/payment structures, voting authorisations, cross-election ballot integrity constraints and election-specific voter eligibility. The SQL has not yet been applied to a live database in this development session.
 - The public repository must contain no real student records, passwords, API keys, OTPs, receipts or production database credentials.
 
@@ -168,6 +168,29 @@ A responsive web interface is now served from the application root (`/`).
 
 The department choices in the initial form are a starter list and must be checked against the Faculty's approved current structure before public launch.
 
+
+
+### Termii SMS setup
+
+The Termii adapter uses the official `POST /api/sms/send` messaging endpoint and the DND route for transactional OTPs. See the [Termii Messaging API documentation](https://developer.termii.com/messaging-api).
+
+Configure these server environment variables (never commit real values):
+
+```env
+SMS_PROVIDER=termii
+TERMII_API_KEY=your_private_termii_api_key
+TERMII_SENDER_ID=your_approved_sender_id
+TERMII_BASE_URL=https://api.ng.termii.com
+```
+
+Before enabling password-reset SMS:
+1. Create or access the institution's Termii account and obtain its API key.
+2. Register and obtain approval for the chosen sender ID (3–11 characters).
+3. Ask Termii support to activate the DND route for transactional OTP messages; the generic route is not suitable for OTPs.
+4. Add the environment variables to the server's secret configuration and restart/redeploy the application.
+5. Run a controlled password-reset test using an authorised test account and phone number, then confirm delivery and successful one-time code use.
+
+The repository tests the adapter using mocked HTTP responses. A successful automated test does not prove that the live account, sender ID, DND route, credits or mobile-network delivery are configured.
 
 ## Candidate nomination and payment workflow
 
