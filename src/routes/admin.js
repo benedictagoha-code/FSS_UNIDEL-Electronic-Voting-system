@@ -386,22 +386,28 @@ router.post('/elections/:id/open-voting', requireAdmin(['super_admin','election_
   }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.post('/elections/:id/close-voting', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const client=await pool.connect();
   try{
-    const r=await pool.query("UPDATE elections SET status='closed' WHERE id=$1 AND status='voting_open' RETURNING id,title",
+    await client.query('BEGIN');
+    const r=await client.query("UPDATE elections SET status='closed' WHERE id=$1 AND status='voting_open' RETURNING id,title",
       [req.params.id]);
-    if(!r.rowCount)return res.status(409).json({error:'This election is not currently open for voting.'});
-    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.voting_closed','election',$2)",[req.session.userId,req.params.id]);
+    if(!r.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'This election is not currently open for voting.'});}
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.voting_closed','election',$2)",[req.session.userId,req.params.id]);
+    await client.query('COMMIT');
     res.json({election:r.rows[0],message:'Voting has been closed.'});
-  }catch(e){next(e);}
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.post('/elections/:id/publish-results', requireAdmin(['super_admin','results_officer']), async(req,res,next)=>{
+  const client=await pool.connect();
   try{
-    const r=await pool.query("UPDATE elections SET status='results_published' WHERE id=$1 AND status='closed' RETURNING id,title",
+    await client.query('BEGIN');
+    const r=await client.query("UPDATE elections SET status='results_published' WHERE id=$1 AND status='closed' RETURNING id,title",
       [req.params.id]);
-    if(!r.rowCount)return res.status(409).json({error:'Close voting before publishing results.'});
-    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.results_published','election',$2)",[req.session.userId,req.params.id]);
+    if(!r.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Close voting before publishing results.'});}
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.results_published','election',$2)",[req.session.userId,req.params.id]);
+    await client.query('COMMIT');
     res.json({election:r.rows[0],message:'Election results have been published.'});
-  }catch(e){next(e);}
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.get('/elections', requireAdmin(['super_admin','election_admin','results_officer']), async(req,res,next)=>{
   try{
