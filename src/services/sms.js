@@ -2,8 +2,6 @@
  * Termii SMS adapter for password-reset OTPs.
  * OTP values and API credentials must never be logged or returned to clients.
  */
-const DEFAULT_BASE_URL = 'https://api.ng.termii.com';
-
 function termiiConfig() {
   if (process.env.SMS_PROVIDER !== 'termii') {
     throw new Error('Termii SMS is not enabled.');
@@ -11,7 +9,8 @@ function termiiConfig() {
 
   const apiKey = process.env.TERMII_API_KEY?.trim();
   const senderId = process.env.TERMII_SENDER_ID?.trim();
-  const baseUrl = (process.env.TERMII_BASE_URL || DEFAULT_BASE_URL).trim().replace(/\/+$/, '');
+  const baseUrl = (process.env.TERMII_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!baseUrl) throw new Error('TERMII_BASE_URL is not configured; use the base URL shown in the Termii dashboard.');
 
   if (!apiKey) throw new Error('TERMII_API_KEY is not configured.');
   if (!senderId || !/^[A-Za-z0-9 -]{3,11}$/.test(senderId)) {
