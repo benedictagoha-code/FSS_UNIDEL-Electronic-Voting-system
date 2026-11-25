@@ -62,3 +62,12 @@
 - Results endpoints return aggregate candidate totals only after publication.
 
 The implementation reduces ordinary application-level linkage. It does not claim cryptographic unlinkability against privileged infrastructure operators; independent review and restricted database access remain necessary before a high-stakes election.
+
+
+## Election-specific voter eligibility and participation
+- Active accounts are eligible by default unless an election-specific exclusion is recorded.
+- Exclusions require an administrator reason and are audited. Eligibility changes are prohibited after voting opens.
+- The voting service checks eligibility server-side at ballot retrieval, authorisation and submission; inactive, suspended or deactivated accounts cannot vote.
+- Participation reports expose only aggregate eligible and participating counts, including department totals. They do not expose ballot choices.
+- Composite database constraints bind each selection to its ballot, election, office and nomination, preventing cross-election or cross-office references.
+- Ballot and participation records currently retain timestamps. Separation of tables reduces ordinary application-level linkage but does not provide cryptographic unlinkability against privileged database or server operators.
