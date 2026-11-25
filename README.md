@@ -154,3 +154,8 @@ The department choices in the initial form are a starter list and must be checke
 - Finance administrators can configure payment account instructions and review pending payment records. Payment verification is separate from eligibility approval.
 - The initial workflow records transaction references for manual verification; it does not yet accept receipt uploads or connect to bank/payment APIs.
 - Run `npm run db:migrate` to apply numbered SQL migrations. Applied migrations are tracked in `schema_migrations`.
+
+
+### Candidate eligibility review
+
+Payment verification and candidate eligibility are deliberately separate administrative decisions. A nomination remains pending until reviewed. The election administrator can approve or reject eligibility; approval is blocked unless the associated nomination payment has first been verified. Both decisions are recorded in the audit log.
