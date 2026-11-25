@@ -97,8 +97,10 @@ async function loadDashboard() {
     $('#adminPanel').hidden = false;
     const roles = admin.roles || [];
     $('#electionAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
+    $('#nominationAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
     $('#financeAdminTools').hidden = !roles.some(r => ['super_admin','finance_admin'].includes(r));
     if (!$('#financeAdminTools').hidden) { await loadPaymentSettings(); await loadPayments(); }
+    if (!$('#nominationAdminTools').hidden) await loadEligibilityQueue();
   } catch { $('#adminPanel').hidden = true; }
   await loadNominationCentre();
 }
@@ -281,3 +283,26 @@ async function loadPayments(){
  }catch(err){box.textContent=err.message;}
 }
 $('#refreshPayments')?.addEventListener('click',loadPayments);
+
+async function loadEligibilityQueue(){
+ const box=$('#eligibilityQueue');box.textContent='Loading…';
+ try{
+  const r=await api('/api/admin/nominations?status=pending');box.replaceChildren();
+  if(!r.nominations.length){box.textContent='No pending candidate nominations.';return;}
+  r.nominations.forEach(n=>{
+   const row=document.createElement('div');row.className='payment-row';
+   const info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
+   name.textContent=n.full_name+' · '+n.office_title;
+   meta.textContent=n.election_title+' · '+n.reference+' · '+n.matric_number+' · '+n.department+' · Payment: '+(n.verification_status||'not recorded');
+   info.append(name,meta);row.append(info);
+   const actions=document.createElement('div');actions.className='user-actions';
+   for(const decision of ['approved','rejected']){
+    const b=document.createElement('button');b.type='button';b.textContent=decision==='approved'?'Approve candidate':'Reject nomination';
+    b.addEventListener('click',async()=>{const reason=prompt('Reason for '+decision+' decision (minimum 5 characters):');if(!reason||reason.trim().length<5)return;try{await api('/api/admin/nominations/'+encodeURIComponent(n.id)+'/eligibility',{method:'POST',body:JSON.stringify({decision,reason:reason.trim()})});showNotice('Candidate eligibility decision recorded.');await loadEligibilityQueue();}catch(err){showNotice(err.message,'error');}});
+    actions.append(b);
+   }
+   row.append(actions);box.append(row);
+  });
+ }catch(err){box.textContent=err.message;}
+}
+$('#refreshEligibility')?.addEventListener('click',loadEligibilityQueue);
