@@ -340,12 +340,13 @@ async function openBallot(electionId){
   container.append(heading,note,form);container.scrollIntoView({behavior:'smooth',block:'start'});
  }catch(error){container.textContent=error.message;showNotice(error.message,'error');}
 }
-async function showElectionResults(electionId){
- const box=$('#resultsDetail');box.hidden=false;box.textContent='Loading results…';
+async function showElectionResults(electionId,quiet=false){
+ const box=$('#resultsDetail');box.hidden=false;box.dataset.electionId=electionId;
+ if(!quiet)box.textContent='Loading published results…';
  try{
   const data=await api('/api/voting/'+encodeURIComponent(electionId)+'/results');
   box.replaceChildren();const heading=document.createElement('h3');heading.textContent=data.election.title+' — Published results';
-  const participation=document.createElement('p');participation.className='muted';participation.textContent='Total participating voters: '+data.totalVoters;
+  const participation=document.createElement('p');participation.className='muted';participation.textContent='Total participating voters: '+data.totalVoters+' · Automatically refreshed every 15 seconds';
   box.append(heading,participation);
   const grouped=new Map();
   data.results.forEach(r=>{if(!grouped.has(r.office_title))grouped.set(r.office_title,[]);if(r.nomination_id)grouped.get(r.office_title).push(r);});
@@ -357,6 +358,14 @@ async function showElectionResults(electionId){
   box.scrollIntoView({behavior:'smooth',block:'start'});
  }catch(error){box.textContent=error.message;}
 }
+// Published results are refreshed automatically. Open elections never expose
+// interim vote totals; the API only serves aggregates after authorised publication.
+window.setInterval(async()=>{
+ if(!currentUser||document.hidden)return;
+ await loadVotingCentre();
+ const detail=$('#resultsDetail');
+ if(detail&&!detail.hidden&&detail.dataset.electionId)await showElectionResults(detail.dataset.electionId,true);
+},15000);
 $('#refreshVoting')?.addEventListener('click',loadVotingCentre);
 
 
