@@ -150,6 +150,37 @@
         </div>
         <section id="adminPanel" class="panel admin-panel" hidden>
           <div class="dashboard-head"><div><p class="eyebrow">RESTRICTED ACCESS</p><h3>Administrator tools</h3></div><span class="status-pill">Authorised administrator</span></div>
+          <section id="electionAdminTools" class="admin-tools" hidden>
+            <h4>Election setup</h4>
+            <form id="createElectionForm" class="admin-form">
+              <input name="title" required minlength="3" placeholder="Election title">
+              <textarea name="description" placeholder="Election description"></textarea>
+              <div class="two-col"><label>Nomination opens<input name="nominationOpensAt" type="datetime-local"></label><label>Nomination closes<input name="nominationClosesAt" type="datetime-local"></label></div>
+              <button class="secondary" type="submit">Create draft election</button>
+            </form>
+            <form id="createOfficeForm" class="admin-form">
+              <input name="electionId" required placeholder="Election ID (from created election)">
+              <input name="title" required placeholder="Office title (e.g. President)">
+              <div class="two-col"><label>Nomination fee (₦)<input name="nominationFeeNaira" type="number" min="0" step="0.01" required></label><label>Number of seats<input name="seats" type="number" min="1" max="20" value="1" required></label></div>
+              <button class="secondary" type="submit">Add office to draft</button>
+            </form>
+            <form id="openNominationsForm" class="admin-form">
+              <input name="electionId" required placeholder="Election ID to open">
+              <button class="secondary" type="submit">Open nominations</button>
+            </form>
+          </section>
+          <section id="financeAdminTools" class="admin-tools" hidden>
+            <h4>Nomination payment account</h4>
+            <form id="paymentSettingsForm" class="admin-form">
+              <div class="two-col"><input name="bankName" required placeholder="Bank / provider (Zenith, OPay, Moniepoint…)"><input name="accountName" required placeholder="Account name"></div>
+              <input name="accountNumber" required placeholder="Account number">
+              <textarea name="instructions" placeholder="Payment instructions for candidates"></textarea>
+              <button class="secondary" type="submit">Save payment instructions</button>
+            </form>
+            <div class="dashboard-head"><h4>Payment verification queue</h4><button id="refreshPayments" class="secondary" type="button">Refresh</button></div>
+            <div id="paymentQueue"><p class="muted">Loading payment records…</p></div>
+          </section>
+          <h4>Student account management</h4>
           <form id="userSearchForm" class="search-row">
             <input name="search" placeholder="Search name, student number, department or level">
             <select name="status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="deactivated">Deactivated</option></select>
