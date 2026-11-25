@@ -78,6 +78,12 @@ test('Termii adapter rejects malformed OTPs, missing base URL and insecure base 
     /TERMII_BASE_URL is not configured/
   );
   process.env.TERMII_BASE_URL = 'https://api.ng.termii.com';
+  process.env.TERMII_SENDER_ID = 'FSS-UNIDEL';
+  await assert.rejects(
+    sendPasswordResetOtp({ to: '+2348012345678', code: '123456' }),
+    /alphanumeric/
+  );
+  process.env.TERMII_SENDER_ID = 'FSSUNIDEL';
   await assert.rejects(
     sendPasswordResetOtp({ to: '+2348012345678', code: '12345' }),
     /six-digit/
