@@ -172,22 +172,22 @@ The department choices in the initial form are a starter list and must be checke
 
 ### Termii SMS setup
 
-The Termii adapter uses the official `POST /api/sms/send` messaging endpoint and the DND route for transactional OTPs. See the [Termii Messaging API documentation](https://developer.termii.com/messaging-api).
+The Termii adapter uses the official `POST /api/sms/send` messaging endpoint and the DND route for transactional OTPs. Termii assigns an account-specific API base URL; copy the exact HTTPS base URL shown in the institution's Termii dashboard rather than assuming a generic regional URL. See the [Termii API endpoint guidance](https://developer.termii.com/) and [Messaging API documentation](https://developer.termii.com/messaging-api).
 
 Configure these server environment variables (never commit real values):
 
 ```env
 SMS_PROVIDER=termii
 TERMII_API_KEY=your_private_termii_api_key
-TERMII_SENDER_ID=your_approved_sender_id
-TERMII_BASE_URL=https://api.ng.termii.com
+TERMII_SENDER_ID=your_DND_approved_sender_id
+TERMII_BASE_URL=the_exact_HTTPS_base_URL_from_your_Termii_dashboard
 ```
 
 Before enabling password-reset SMS:
 1. Create or access the institution's Termii account and obtain its API key.
-2. Register and obtain approval for the chosen sender ID (3–11 characters).
-3. Ask Termii support to activate the DND route for transactional OTP messages; the generic route is not suitable for OTPs.
-4. Add the environment variables to the server's secret configuration and restart/redeploy the application.
+2. Ask Termii which sender ID is enabled for the DND route on the institutional account. Configure that exact sender ID; a generic/alphanumeric sender approval does not by itself prove DND-route availability.
+3. Ask Termii support (support@termii.com) to activate the DND route for transactional OTP messages; the generic route is not suitable for OTPs.
+4. Copy the account-specific HTTPS base URL from the Termii dashboard and add all environment variables to the server's secret configuration, then restart/redeploy the application.
 5. Run a controlled password-reset test using an authorised test account and phone number, then confirm delivery and successful one-time code use.
 
 The repository tests the adapter using mocked HTTP responses. A successful automated test does not prove that the live account, sender ID, DND route, credits or mobile-network delivery are configured.
