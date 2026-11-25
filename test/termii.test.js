@@ -10,7 +10,7 @@ for (const key of ['SMS_PROVIDER','TERMII_API_KEY','TERMII_SENDER_ID','TERMII_BA
 function setTermiiEnv() {
   process.env.SMS_PROVIDER = 'termii';
   process.env.TERMII_API_KEY = 'test-termii-key';
-  process.env.TERMII_SENDER_ID = 'FSS-UNIDEL';
+  process.env.TERMII_SENDER_ID = 'FSSUNIDEL';
   process.env.TERMII_BASE_URL = 'https://api.ng.termii.com';
 }
 
@@ -38,7 +38,7 @@ test('Termii adapter sends a transactional DND SMS using digits-only phone numbe
     const result = await sendPasswordResetOtp({ to: '+2348012345678', code: '004219' });
     assert.equal(request.url, 'https://api.ng.termii.com/api/sms/send');
     assert.equal(request.body.to, '2348012345678');
-    assert.equal(request.body.from, 'FSS-UNIDEL');
+    assert.equal(request.body.from, 'FSSUNIDEL');
     assert.equal(request.body.channel, 'dnd');
     assert.equal(request.body.type, 'plain');
     assert.equal(request.options.redirect, 'error', 'the API key must not be forwarded through redirects');
