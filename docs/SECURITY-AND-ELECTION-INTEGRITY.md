@@ -98,3 +98,7 @@ PostgreSQL enforces the election status sequence: draft → nominations open →
 ## Ballot immutability and voting-window enforcement
 
 PostgreSQL rejects ballot, selection and voter-participation updates or deletions. Ballot and selection inserts are accepted only while the election is in the voting-open state; database row locks coordinate these checks with election closure. The application also validates eligibility, one-use authorisation and candidate/office consistency inside a transaction. These controls make direct database tampering and route bypass materially harder, but do not make the system invulnerable: production security still depends on hardened hosting, restricted database credentials, protected secrets, patching, backups, monitoring, independent testing and incident response.
+
+## Results visibility
+
+Interim vote totals are not exposed to students, candidates or the public while voting is open. Results remain unavailable until voting has closed and an authorised results officer or super administrator publishes them. The published results board refreshes automatically every 15 seconds. Publication is a one-way lifecycle transition; no tally is disclosed during the live voting period.
