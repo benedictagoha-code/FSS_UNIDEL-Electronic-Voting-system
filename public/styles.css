@@ -22,5 +22,5 @@
  body.printing-election .print-selected *{visibility:visible!important}
  body.printing-election .print-selected{position:absolute!important;left:0!important;top:0!important;width:100%!important;border:0!important;background:#fff!important;padding:12mm!important;box-shadow:none!important}
  body.printing-election .print-election-button{display:none!important}
- body.printing-election .unopposed-flag{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#b42318!important;color:#fff!important}
+ body.printing-election .unopposed-flag{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff!important;color:#b42318!important;border:2px solid #b42318!important}
 }
