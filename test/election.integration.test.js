@@ -253,6 +253,25 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     assert.equal(simultaneousBallots.filter(x=>x.status===401).length,1,
       'the second simultaneous submission must find its authorisation consumed');
 
+    const acceptedBallot = await pool.query('SELECT id FROM ballots WHERE election_id=$1 LIMIT 1',[electionId]);
+    const acceptedSelection = await pool.query('SELECT id FROM ballot_selections WHERE election_id=$1 LIMIT 1',[electionId]);
+    assert.ok(acceptedBallot.rowCount && acceptedSelection.rowCount,'accepted ballot and selection should exist');
+    await assert.rejects(
+      () => pool.query("UPDATE ballots SET election_id=$1 WHERE id=$2",[electionId,acceptedBallot.rows[0].id]),
+      error => error.code === '55000',
+      'accepted ballots must not be editable'
+    );
+    await assert.rejects(
+      () => pool.query("DELETE FROM ballot_selections WHERE id=$1",[acceptedSelection.rows[0].id]),
+      error => error.code === '55000',
+      'accepted vote selections must not be deletable'
+    );
+    await assert.rejects(
+      () => pool.query("DELETE FROM voter_participation WHERE election_id=$1 AND voter_user_id=(SELECT id FROM users WHERE matric_number='PSY-TEST-4001')",[electionId]),
+      error => error.code === '55000',
+      'voter participation records must not be deletable'
+    );
+
     const duplicateAuth = await candidate(`/api/voting/${electionId}/authorise`,{method:'POST',body:{}});
     assert.equal(duplicateAuth.status,409,'a voter must not receive a second ballot authorisation');
 
