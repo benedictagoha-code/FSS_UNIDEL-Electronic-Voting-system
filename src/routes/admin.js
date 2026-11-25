@@ -332,8 +332,8 @@ router.put('/nomination-payment-settings', requireAdmin(['super_admin','finance_
       account_number=EXCLUDED.account_number,payment_instructions=EXCLUDED.payment_instructions,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
       [p.data.bankName,p.data.accountName,p.data.accountNumber,p.data.instructions,req.session.userId]);
     await client.query(`INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
-      VALUES($1,'nomination_payment_settings.updated','settings','nomination_payment_settings',$2::jsonb)`,
-      [req.session.userId,JSON.stringify({bankName:p.data.bankName,accountName:p.data.accountName,accountNumberLast4:p.data.accountNumber.slice(-4)})]);
+      VALUES($1,'nomination_payment_settings.updated','settings',NULL,$2::jsonb)`,
+      [req.session.userId,JSON.stringify({setting:'nomination_payment_settings',bankName:p.data.bankName,accountName:p.data.accountName,accountNumberLast4:p.data.accountNumber.slice(-4)})]);
     await client.query('COMMIT');
     res.json({message:'Nomination payment instructions updated.'});
   }catch(e){await client.query('ROLLBACK');next(e);}
