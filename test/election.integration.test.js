@@ -492,15 +492,15 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
 
     const participation = await admin(`/api/admin/elections/${electionId}/participation`);
     assert.equal(participation.status,200,'admin should view aggregate turnout');
-    assert.equal(participation.body.eligibleVoters,4,
+    assert.equal(participation.body.eligibleVoters,5,
       'turnout denominator must use the frozen active eligible voter roll');
     assert.ok(participation.body.participatingVoters>=1);
     const voterSnapshot = await pool.query(
       'SELECT COUNT(*)::int AS count FROM election_voter_snapshots WHERE election_id=$1',
       [electionId]
     );
-    assert.equal(voterSnapshot.rows[0].count,4,
-      'voting opening must snapshot active eligible students and include active student-administrators and exclude the administratively excluded voter');
+    assert.equal(voterSnapshot.rows[0].count,5,
+      'voting opening must snapshot active eligible students and include active student-administrators and the second candidate, while excluding the administratively excluded voter');
     assert.ok(!JSON.stringify(participation.body).includes(candidateNomination),'turnout report must not expose ballot selections');
 
     const hiddenResults = await candidate(`/api/voting/${electionId}/results`);
