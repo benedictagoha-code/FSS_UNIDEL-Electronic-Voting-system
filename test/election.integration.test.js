@@ -297,6 +297,20 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'audit register must not expose ballot candidate selections');
     const candidateAuditAccess = await candidate('/api/admin/audit-logs');
     assert.equal(candidateAuditAccess.status,403,'ordinary students must not access the audit register');
+    const protectedAuditRow = await pool.query(
+      `SELECT id FROM audit_logs WHERE entity_type='election' AND entity_id=$1 AND action='election.voting_closed' ORDER BY id DESC LIMIT 1`,
+      [electionId]
+    );
+    await assert.rejects(
+      pool.query('UPDATE audit_logs SET action=$1 WHERE id=$2',['tampered.audit.event',protectedAuditRow.rows[0].id]),
+      error=>error.code==='55000',
+      'database must reject modification of existing audit events'
+    );
+    await assert.rejects(
+      pool.query('DELETE FROM audit_logs WHERE id=$1',[protectedAuditRow.rows[0].id]),
+      error=>error.code==='55000',
+      'database must reject deletion of existing audit events'
+    );
 
     const results = await candidate(`/api/voting/${electionId}/results`);
     assert.equal(results.status,200,'published results should become visible');
