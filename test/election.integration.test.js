@@ -296,7 +296,9 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const ballotAudit = auditRegister.body.logs.find(row=>row.action==='voting.ballot_cast');
     assert.ok(ballotAudit,'accepted ballot should have a participation audit event');
     assert.equal(ballotAudit.entity_type,'election','ballot audit event must identify only the election');
-    assert.equal(ballotAudit.entity_id,electionId,'ballot audit event must not identify a selected candidate');
+    assert.equal(ballotAudit.entity_id,electionId,'ballot audit event must identify only the election');
+    assert.equal(ballotAudit.actor_name,null,'ballot audit event must not identify the voter');
+    assert.equal(ballotAudit.actor_matric_number,null,'ballot audit event must not expose the voter matriculation number');
     assert.deepEqual(ballotAudit.metadata,{},'ballot audit event must not contain candidate selections');
     assert.ok(!JSON.stringify(ballotAudit).includes(candidateNomination),
       'ballot audit event must not expose a candidate nomination identifier');
