@@ -215,6 +215,13 @@ router.post('/:electionId/ballot', async (req, res, next) => {
   } finally { client.release(); }
 });
 
+router.get('/published', async (_req,res,next)=>{
+  try{
+    const r=await pool.query("SELECT id,title,description FROM elections WHERE status='results_published' ORDER BY created_at DESC");
+    res.json({elections:r.rows});
+  }catch(error){next(error);}
+});
+
 router.get('/:electionId/results', async (req, res, next) => {
   try {
     const election = await pool.query(
