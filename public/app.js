@@ -101,7 +101,7 @@ async function loadDashboard() {
     $('#nominationAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
     $('#financeAdminTools').hidden = !roles.some(r => ['super_admin','finance_admin'].includes(r));
     if (!$('#financeAdminTools').hidden) { await loadPaymentSettings(); await loadPayments(); }
-    if (!$('#electionAdminTools').hidden) await loadAdminElections();
+    if (!$('#electionAdminTools').hidden || !$('#resultsAdminTools').hidden) await loadAdminElections();
     if (!$('#nominationAdminTools').hidden) await loadEligibilityQueue();
   } catch { $('#adminPanel').hidden = true; }
   await loadNominationCentre();
