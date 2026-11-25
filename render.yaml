@@ -1,0 +1,43 @@
+# Render Blueprint for FSS@UNIDEL Electronic Voting System.
+# Region is Frankfurt for the closest currently available Render region to Nigeria.
+# Both resources use paid plans: do not downgrade the database to ephemeral/free storage
+# for a real election deployment.
+services:
+  - type: web
+    name: fss-unidel-voting
+    runtime: docker
+    region: frankfurt
+    plan: 1c-2g
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    preDeployCommand: npm run db:migrate
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fss-unidel-voting-db
+          property: connectionString
+      - key: DATABASE_SSL_MODE
+        value: require
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OTP_PEPPER
+        generateValue: true
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: SMS_PROVIDER
+        value: unconfigured
+
+databases:
+  - name: fss-unidel-voting-db
+    databaseName: fss_voting_prod
+    user: fss_voting_app
+    region: frankfurt
+    postgresMajorVersion: "16"
+    plan: 0.5c-1g
+    diskSizeGB: 15
+    storageAutoscalingEnabled: true
+    ipAllowList: []
