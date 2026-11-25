@@ -1,81 +1,78 @@
-# Render production deployment and go-live runbook
+# Render free-tier deployment and go-live preparation
 
 ## Current status
 
-The repository contains a Render Blueprint at `render.yaml`. It defines:
-- Web service: `fss-unidel-voting`, Docker runtime, Frankfurt region, 1 CPU / 2 GB plan.
-- Managed PostgreSQL: `fss-unidel-voting-db`, PostgreSQL 16, Frankfurt region, 0.5 CPU / 1 GB plan, 15 GB initial storage with storage autoscaling.
-- Private database access only (`ipAllowList: []`); the web service connects using Render's internal database URL.
-- Database TLS required for Render's internal PostgreSQL connection. Render uses self-signed certificates for internal TLS, so `DATABASE_SSL_MODE=require` encrypts traffic without CA verification. The application defaults to certificate verification for other production providers.
-- Database migrations run as the paid web service's pre-deploy command (`npm run db:migrate`).
-- Automatic deploys occur only after linked GitHub checks pass.
-- Health check: `/api/health`.
+The repository contains a Render Blueprint at `render.yaml`. It defines a **free Render web service only**. It does not create a Render Postgres database because Render's free Postgres expires after 30 days. The app requires a separate PostgreSQL database whose free-plan data persists beyond 30 days.
 
-**The repository is prepared but the Render resources have not been provisioned.** Creating the Blueprint provisions paid resources and incurs Render charges. Review the current prices and billing estimate in Render before confirming resource creation. Do not substitute free/ephemeral database storage for live election data.
+The free web service:
+- Uses the Docker runtime in Frankfurt.
+- Sleeps after 15 minutes without inbound traffic and can take about a minute to wake.
+- Has 512 MB RAM and limited CPU, and may restart at any time.
+- Has no persistent local filesystem, no SSH/Shell access, and no one-off jobs.
+- Is for testing/preview rather than a dependable production election service.
 
-## What the owner must provide or authorise
+Render documents that free Postgres is limited to 1 GB, has no backups, and expires 30 days after creation. Do not use it for election records. See https://render.com/docs/free.
 
-1. **Render account/workspace:** access to the Render workspace in which the service and database should be created. The owner should sign in and perform the provisioning; do not send Render passwords, recovery codes, or API tokens in chat.
-2. **GitHub connection:** authorise Render to access `benedictagoha-code/FSS_UNIDEL-Electronic-Voting-system` and its `main` branch. The repository is currently public, but Render still needs a Git-provider connection for CI-gated automatic deployments.
-3. **Billing approval:** approve the displayed cost for the web service and managed PostgreSQL database. Current plans and prices can change; check the Render dashboard before creating resources.
-4. **Domain (optional initially):** either use the Render-provided `.onrender.com` address or provide an institutional domain and access to its DNS management. Render provisions TLS for supported custom domains after DNS is configured.
-5. **Termii account for password-reset SMS:** provide the API key, approved sender ID, and exact HTTPS API base URL from the Termii dashboard directly in Render's environment settings. Do not put credentials in GitHub or this chat. The account must have the required transactional/DND route enabled. Until configured and tested, password-reset SMS remains unavailable; ordinary registration and sign-in do not require OTP.
-6. **First super-administrator identity:** provide the exact matriculation/registration number of the already registered account that is to receive the first `super_admin` role. Verify the person's identity and authority through the institution before granting it.
-7. **Election owner approval:** the institution must approve voter eligibility, nomination fee and payment instructions, election schedule, ballot/abstention rules, results publication, dispute handling and data-retention policy before a binding election.
+## Free database option
 
-No production database password, Render API token, Termii API key, session secret, or OTP pepper needs to be sent to the developer in chat. Render generates the session and OTP secrets from the Blueprint.
+A free external PostgreSQL service is required. One option is Neon Free:
+- PostgreSQL data storage persists and does not expire after 30 days.
+- Current free allowance: 1 GB storage, 100 compute-hours/project/month, and 5 GB network transfer/project/month.
+- Database compute scales to zero after inactivity and wakes on the next connection.
+- It has usage limits; compute can be suspended when the allowance is exhausted.
+- It is not a substitute for independently maintained backups or a production-grade election database.
 
-## Deployment steps in Render
+Official details: https://neon.com/docs/introduction/plans and https://neon.com/docs/introduction/scale-to-zero.
 
-1. Sign in to Render and connect the GitHub account that can access the repository.
-2. Choose **New > Blueprint**, select `benedictagoha-code/FSS_UNIDEL-Electronic-Voting-system`, branch `main`, and let Render detect the root `render.yaml`.
-3. Review the two paid resources, Frankfurt region, database plan/storage and estimated billing. Confirm only if the owner approves the cost.
-4. Apply the Blueprint. Render provisions the web service and PostgreSQL database and supplies `DATABASE_URL` internally. The Blueprint generates distinct `SESSION_SECRET` and `OTP_PEPPER` values.
-5. Wait for the image build, pre-deploy migrations and deployment. The service must pass `/api/health` before proceeding.
-6. Open the generated Render URL over HTTPS. Confirm the landing page, registration, sign-in, password handling and protected admin routes.
-7. Register the designated first administrator as an ordinary student account using the institution-verified matriculation/registration number. Do not register a fake or shared administrator identity.
-8. Open the Render service's Shell (or run the one-time command from a trusted workstation with the database's external connection string and required environment variables). Set `ADMIN_BOOTSTRAP_CONFIRM=I_HAVE_SECURED_DATABASE_ACCESS` only for this operation and run:
-   ```bash
-   npm run admin:bootstrap -- MATRIC_OR_REGISTRATION_NUMBER
-   ```
-   Type `YES` at the confirmation prompt. The bootstrap refuses to run if any admin role already exists. Remove the temporary confirmation variable immediately afterward. Do not expose the bootstrap as a public HTTP endpoint.
-9. Sign in with the existing account, confirm the super-admin role, then assign other administrators only the minimum roles they require.
-10. Configure Termii in the Render service environment:
-    - `SMS_PROVIDER=termii`
-    - `TERMII_API_KEY` = secret API key from Termii
-    - `TERMII_SENDER_ID` = approved 3–11 character alphanumeric sender ID
-    - `TERMII_BASE_URL` = exact HTTPS base URL shown by Termii
-    Save/redeploy, then test password reset to an authorised phone number and confirm the SMS arrives. Do not use a real student's number without permission.
-11. Run a supervised mock election with test accounts. Verify candidate nominations, payment verification, eligibility decisions, voter snapshot, one-ballot enforcement, close, result publication, printed unopposed notices and audit records.
-12. Configure and test database backups and restore, restrict workspace access, enable account MFA, and appoint at least two authorised institutional operators under the approved role policy before a live election.
+The app will connect over public TLS using the Neon connection string. The Render Blueprint prompts for `DATABASE_URL`; the owner pastes the Neon pooled connection string into Render's environment settings, not into GitHub or this chat. Keep `DATABASE_SSL_MODE=require`.
 
-## Required environment variables
+## Deployment steps
 
-The Blueprint sets these automatically:
+1. Create a Neon Free project at https://console.neon.tech/ (or another compatible free PostgreSQL provider). Choose PostgreSQL 16 if available.
+2. Copy the pooled PostgreSQL connection string from the provider dashboard. Keep it private.
+3. Sign into Render at https://dashboard.render.com/ and connect GitHub access to `benedictagoha-code/FSS_UNIDEL-Electronic-Voting-system`, branch `main`.
+4. Choose **New > Blueprint**, select the repository and branch `main`, and review the detected `render.yaml`. It provisions only a free web service; it does not provision any paid resources or a Render database.
+5. When prompted for `DATABASE_URL`, paste the external free PostgreSQL connection string into Render's protected environment-variable field. Never commit it to GitHub or send it in chat.
+6. Apply the Blueprint. Render generates `SESSION_SECRET` and `OTP_PEPPER` automatically.
+7. On every container start, the Docker command runs `npm run db:migrate` before `npm start`. The migration runner records applied versions and skips them on subsequent starts. Confirm the logs show migrations completed and the service starts successfully.
+8. Confirm the health endpoint `/api/health` returns HTTP 200. Open the HTTPS Render URL and test registration and sign-in using synthetic test accounts only.
+9. Register the intended first administrator as an ordinary student account. Verify their identity and authority through the institution.
+10. **First super-admin bootstrap:** Render Free web services do not provide Shell/SSH access and do not support one-off jobs. Run the bootstrap from a trusted workstation using the same production environment variables and database connection string:
+    ```bash
+    ADMIN_BOOTSTRAP_CONFIRM=I_HAVE_SECURED_DATABASE_ACCESS npm run admin:bootstrap -- MATRIC_OR_REGISTRATION_NUMBER
+    ```
+    The command prompts for `YES`, refuses if any admin role already exists, and uses the registered account. Run it only from a secured machine; do not paste the connection string into a shared terminal or chat. Unset the temporary confirmation variable immediately afterward.
+11. Configure Termii only if password-reset SMS is required. In Render's environment settings set `SMS_PROVIDER=termii`, `TERMII_API_KEY`, `TERMII_SENDER_ID`, and `TERMII_BASE_URL`. The Termii account must have an approved sender ID and required DND route. Keep the API key private.
+12. Run a supervised mock election with synthetic accounts. Verify nominations, manual payment review, eligibility, frozen voter snapshot, one-ballot enforcement, close, publication, printable unopposed notices and audit history.
+13. Export database backups regularly using the provider's supported PostgreSQL dump/export tool. Store encrypted backups somewhere separate from both Render and the database provider, and test restoring one before considering a real election.
 
-| Variable | Source |
+## Required Render environment variables
+
+| Variable | Value/source |
 |---|---|
 | `NODE_ENV` | `production` |
-| `DATABASE_URL` | Render private Postgres connection string |
-| `DATABASE_SSL_MODE` | `require` (Render internal TLS) |
+| `DATABASE_URL` | External free PostgreSQL connection string; entered privately during Blueprint setup |
+| `DATABASE_SSL_MODE` | `require` |
 | `SESSION_SECRET` | Generated by Render |
-| `OTP_PEPPER` | Separately generated by Render |
+| `OTP_PEPPER` | Generated by Render, distinct from session secret |
 | `TRUST_PROXY_HOPS` | `1` |
-| `SMS_PROVIDER` | `unconfigured` until Termii is activated |
+| `SMS_PROVIDER` | `unconfigured` until Termii is set up |
+| `TERMII_API_KEY` | Add only after Termii account is ready |
+| `TERMII_SENDER_ID` | Approved Termii sender ID |
+| `TERMII_BASE_URL` | Exact HTTPS API base URL from Termii |
 
-Render supplies `PORT`. Add the four Termii values manually only after the institution's Termii account is approved. No separate `APP_BASE_URL` is currently required by the application code; use the actual HTTPS service URL when sharing access.
+Render supplies `PORT`. The application does not currently require a separate `APP_BASE_URL`.
 
-## Operational safeguards and limitations
+## Important limitations — not approved for a binding election
 
-- The Render Blueprint uses a paid web plan because the database migration pre-deploy command is a paid-plan feature. It uses a paid managed database with persistent storage; this is deliberate for election records.
-- Keep the database private. The Blueprint sets an empty external IP allow list; the Render web service can still connect over the private network.
-- The app's `/api/health` endpoint checks database connectivity. A healthy HTTP response does not replace end-to-end election testing.
-- Termii credentials are not in source control. SMS delivery cannot be considered active until the account, sender ID and DND route have been tested.
-- Manual nomination-payment verification is implemented; there is no live bank/payment gateway integration.
+- Render Free is a preview/hobby service. It sleeps after 15 minutes of inactivity, has cold starts, limited resources and may restart at any time. It offers no uptime SLA.
+- The external free database has quotas, scale-to-zero and no managed production-grade backup guarantee. Free tiers can change; monitor usage and keep independent backups.
+- Render free web services have ephemeral filesystems. Never save authoritative election data, uploaded evidence or database files on the web-service filesystem.
+- The free deployment is suitable for development, demonstrations and a supervised mock election, not for a binding faculty election requiring continuous availability, guaranteed recovery and dependable audit preservation.
+- Manual nomination-payment verification is implemented; no live bank/payment gateway integration is included.
 - Participation and ballot selections are stored separately, but timestamps may be correlated by privileged database/server operators. Do not claim cryptographic unlinkability.
-- Never use real student records for deployment smoke tests. Use synthetic test accounts and remove them under an approved, audited procedure before launch.
-- Do not start a binding election until the institution has completed security review, mock election, backup/restore test, operational sign-off and communicated election rules.
+- Do not start a binding election until the institution has approved election rules, completed independent security review, mock election, backup/restore test and operational sign-off.
 
-## Rollback and recovery
+## Recovery
 
-Before schema-changing deployments, ensure a verified database backup exists. Prefer forward-only corrective migrations rather than editing an applied migration. Test restores in a separate database. Do not restore or roll back production election data without the election authority's approval and an incident record.
+Before any schema-changing deployment, export a verified database backup. Prefer forward-only corrective migrations rather than editing an applied migration. Test restores in a separate database. Never restore or roll back production election data without election-authority approval and an incident record.
