@@ -15,6 +15,80 @@ function maskPhone(value) {
   return value.slice(0, 4) + '••••' + value.slice(-3);
 }
 
+
+const roleSchema = z.object({
+  role: z.enum(['super_admin','election_admin','finance_admin','moderator','results_officer'])
+});
+
+router.get('/administrators', requireAdmin(['super_admin']), async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT u.id, u.matric_number, p.full_name, ar.role, ar.created_at
+       FROM admin_roles ar
+       JOIN users u ON u.id = ar.user_id
+       JOIN student_profiles p ON p.user_id = u.id
+       ORDER BY p.full_name, ar.role`
+    );
+    res.json({ administrators: result.rows });
+  } catch (error) { next(error); }
+});
+
+router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), async (req, res, next) => {
+  const parsed = roleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Select a valid administrator role.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const user = await client.query(
+      "SELECT id FROM users WHERE id = $1 AND account_status = 'active' FOR UPDATE",
+      [req.params.userId]
+    );
+    if (!user.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Active student account not found.' });
+    }
+    await client.query(
+      `INSERT INTO admin_roles (user_id, role, granted_by)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (user_id) DO UPDATE SET role = EXCLUDED.role, granted_by = EXCLUDED.granted_by, created_at = NOW()`,
+      [req.params.userId, parsed.data.role, req.session.userId]
+    );
+    await client.query(
+      `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, 'admin.role_granted', 'user', $2, $3::jsonb)`,
+      [req.session.userId, req.params.userId, JSON.stringify({ role: parsed.data.role })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Administrator role assigned.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally { client.release(); }
+});
+
+router.delete('/administrators/:userId/roles', requireAdmin(['super_admin']), async (req, res, next) => {
+  if (req.params.userId === req.session.userId) return res.status(400).json({ error: 'You cannot remove your own administrator role.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const removed = await client.query('DELETE FROM admin_roles WHERE user_id = $1 RETURNING role', [req.params.userId]);
+    if (!removed.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Administrator role not found.' });
+    }
+    await client.query(
+      `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, metadata)
+       VALUES ($1, 'admin.role_revoked', 'user', $2, $3::jsonb)`,
+      [req.session.userId, req.params.userId, JSON.stringify({ previousRole: removed.rows[0].role })]
+    );
+    await client.query('COMMIT');
+    res.json({ message: 'Administrator role removed.' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally { client.release(); }
+});
+
 router.get('/me', requireAdmin(), (req, res) => {
   res.json({ roles: req.adminRoles });
 });
