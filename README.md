@@ -71,3 +71,39 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Important implementation note
 Department and programme options must be configurable by administrators and reconciled with the Faculty's approved structure. Peace and Conflict Studies is a programme under Sociology, not a separate department; Public Administration is not part of this Faculty.
+
+## Backend foundation (implementation started)
+
+The first backend foundation has been committed to `main`.
+
+### Current implementation
+- Node.js 20+ / Express API scaffold.
+- PostgreSQL initial migration for accounts, profiles, roles, elections, offices, nominations, nomination payments, participation, anonymous ballots, ballot selections, moderation and audit records.
+- Student registration and password login API.
+- Argon2id password hashing; passwords are never returned by the API.
+- Unique matriculation/registration number and phone constraints.
+- Password-reset endpoints designed to send a short-lived OTP only to the phone number already stored for the account.
+- PostgreSQL-backed sessions and baseline request rate limits.
+
+### API routes currently present
+- `GET /api/health`
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `POST /api/auth/password-reset/request`
+- `POST /api/auth/password-reset/complete`
+
+### Local setup
+1. Install Node.js 20 or later and PostgreSQL.
+2. Clone this repository and run `npm install`.
+3. Create a PostgreSQL database.
+4. Copy `.env.example` to `.env` and set `DATABASE_URL`, `SESSION_SECRET` and `OTP_PEPPER` to private values.
+5. Run `npm run db:migrate`.
+6. Run `npm run dev` and check `http://localhost:3000/api/health`.
+
+### Important limitations at this stage
+- This is a backend foundation, not a finished voting website. No public registration page, admin dashboard, nomination form, payment processing, ballot interface or deployment is live yet.
+- SMS delivery is intentionally disabled until a specific gateway is selected and its adapter is implemented and tested. The registrant's saved phone number is the intended OTP destination; it is not itself the SMS delivery provider.
+- The initial migration creates the core data structures. Election workflows, authorisation policies, ballot submission transactions, independent security tests and deployment hardening still need to be implemented before an actual election.
+- The public repository must contain no real student records, passwords, API keys, OTPs, receipts or production database credentials.
