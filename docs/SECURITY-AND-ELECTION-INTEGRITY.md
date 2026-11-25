@@ -83,3 +83,8 @@ The implementation reduces ordinary application-level linkage. It does not claim
 - Ordinary student accounts cannot access the audit register. Audit access itself should be monitored and the underlying database audit records retained in protected backups.
 
 - PostgreSQL triggers reject UPDATE and DELETE operations on audit records. Any correction must be captured as a new audit event; routine test cleanup uses disposable database truncation only.
+
+
+## Password-reset session revocation
+
+After a password reset is successfully verified, the application updates the Argon2id password hash, consumes outstanding reset codes, and deletes all persisted login sessions belonging to that account. The user must authenticate again with the new password on every device. This reduces the risk that a stolen or unattended session remains usable after account recovery.
