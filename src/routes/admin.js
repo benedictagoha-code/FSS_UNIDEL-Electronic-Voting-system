@@ -346,7 +346,7 @@ router.get('/nomination-payment-settings', requireAdmin(['super_admin','finance_
 router.get('/nomination-payments', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
   try{
     const r=await pool.query(`SELECT p.id,p.amount_kobo,p.payment_channel,p.transaction_reference,p.verification_status,p.submitted_at,
-      n.id AS nomination_id,n.reference,e.title AS election_title,o.title AS office_title,s.full_name,u.matric_number,s.department
+      n.id AS nomination_id,n.reference,n.eligibility_status,e.title AS election_title,o.title AS office_title,s.full_name,u.matric_number,s.department
       FROM nomination_payments p JOIN nominations n ON n.id=p.nomination_id JOIN elections e ON e.id=n.election_id
       JOIN election_offices o ON o.id=n.office_id JOIN users u ON u.id=n.candidate_user_id JOIN student_profiles s ON s.user_id=u.id
       ORDER BY CASE p.verification_status WHEN 'pending' THEN 0 ELSE 1 END,p.submitted_at DESC LIMIT 200`);
@@ -359,8 +359,18 @@ router.post('/nomination-payments/:id/decision', requireAdmin(['super_admin','fi
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const r=await client.query("SELECT id,verification_status,nomination_id FROM nomination_payments WHERE id=$1 FOR UPDATE",[req.params.id]);
+    const r=await client.query(
+      `SELECT p.id,p.verification_status,p.nomination_id,n.eligibility_status
+       FROM nomination_payments p JOIN nominations n ON n.id=p.nomination_id
+       JOIN elections e ON e.id=n.election_id
+       WHERE p.id=$1 FOR UPDATE OF e,n,p`,
+      [req.params.id]
+    );
     if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Payment record not found.'});}
+    if(r.rows[0].eligibility_status==='withdrawn'){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'This nomination has been withdrawn; its payment record is retained and cannot be newly verified.'});
+    }
     if(r.rows[0].verification_status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'This payment has already been reviewed.'});}
     await client.query("UPDATE nomination_payments SET verification_status=$1,verified_by=$2,verified_at=NOW() WHERE id=$3",[p.data.decision,req.session.userId,req.params.id]);
     await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'nomination_payment',$3,$4::jsonb)",
