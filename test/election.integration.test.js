@@ -223,7 +223,8 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'the competing request must observe the already-open election');
     const setupAudit = await pool.query(
       `SELECT action FROM audit_logs
-       WHERE entity_id = $1 AND action IN ('election.created','election.office_created')
+       WHERE (entity_id = $1 OR metadata->>'electionId' = $1::text)
+         AND action IN ('election.created','election.office_created')
        ORDER BY action`,
       [electionId]
     );
