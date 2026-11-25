@@ -314,6 +314,11 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     assert.equal(closeVoting.status,200,'authorised early closure with a reason should succeed');
     assert.equal(closeVoting.body.earlyClose,true,'the API should identify an early closure');
+    await assert.rejects(
+      () => pool.query('INSERT INTO ballots(election_id) VALUES($1)',[electionId]),
+      error => error.code === '55000',
+      'database must reject new ballot records after voting closes'
+    );
     const earlyCloseAudit = await pool.query(
       `SELECT metadata FROM audit_logs WHERE entity_type='election' AND entity_id=$1 AND action='election.voting_closed' ORDER BY id DESC LIMIT 1`,
       [electionId]
