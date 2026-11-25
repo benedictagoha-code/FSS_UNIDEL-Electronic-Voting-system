@@ -107,3 +107,24 @@ The first backend foundation has been committed to `main`.
 - SMS delivery is intentionally disabled until a specific gateway is selected and its adapter is implemented and tested. The registrant's saved phone number is the intended OTP destination; it is not itself the SMS delivery provider.
 - The initial migration creates the core data structures. Election workflows, authorisation policies, ballot submission transactions, independent security tests and deployment hardening still need to be implemented before an actual election.
 - The public repository must contain no real student records, passwords, API keys, OTPs, receipts or production database credentials.
+
+
+## Administrator foundation
+
+- Admin API routes are protected by server-side role checks.
+- The first `super_admin` is assigned only through a one-time command against an existing registered account. It cannot be self-assigned through a public endpoint.
+- The bootstrap command refuses to run if any admin role already exists.
+- Student search returns masked phone numbers and supports name, matriculation number, department, level and account-status filters.
+- Moderation actions are reasoned and audited: mute, suspend, deactivate and restore.
+- Muting is stored as a time-limited flag; discussion/comment endpoints must enforce it when those features are introduced. Muting does not block sign-in or voting.
+- Suspension and deactivation prevent sign-in. Existing election records are retained.
+
+### First administrator setup (after deploying the database and registering the intended account)
+
+Set the temporary environment variable `ADMIN_BOOTSTRAP_CONFIRM=I_HAVE_SECURED_DATABASE_ACCESS`, then run:
+
+```bash
+npm run admin:bootstrap -- MATRIC_OR_REGISTRATION_NUMBER
+```
+
+Confirm with `YES` at the prompt. Remove the temporary environment variable after the command completes. This command requires direct access to the trusted server/database environment; never run it from a public browser or commit the confirmation value.
