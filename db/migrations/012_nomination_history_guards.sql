@@ -93,6 +93,11 @@ BEGIN
   END IF;
 
   IF NEW.verification_status IS NOT DISTINCT FROM OLD.verification_status THEN
+    IF NEW.verified_by IS DISTINCT FROM OLD.verified_by
+       OR NEW.verified_at IS DISTINCT FROM OLD.verified_at THEN
+      RAISE EXCEPTION 'Nomination payment review attribution is immutable'
+        USING ERRCODE = '55000';
+    END IF;
     RETURN NEW;
   END IF;
 
