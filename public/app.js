@@ -367,21 +367,28 @@ async function loadAdminElections(){
    const heading=document.createElement('p');
    heading.textContent=e.title+' · '+e.status+' · ID: '+e.id;card.append(heading);
    (e.offices||[]).forEach(o=>{
-    const line=document.createElement('p');line.className='admin-office-status';
-    const detail=document.createElement('span');
-    detail.textContent=o.title+' — '+o.approvedCount+' approved candidate(s)';
-    line.append(detail);
+    const line=document.createElement('div');line.className='admin-office-status';
+    const detail=document.createElement('strong');detail.textContent=o.title+' — '+o.approvedCount+' approved candidate(s)';line.append(detail);
     if(o.unopposed){
      const flag=document.createElement('strong');flag.className='unopposed-flag';
-     flag.textContent='UNOPPOSED!';flag.setAttribute('aria-label','Unopposed: only one approved candidate at close of nominations');
-     line.append(flag);
+     flag.textContent='UNOPPOSED!';flag.setAttribute('aria-label','Unopposed: only one approved candidate at close of nominations');line.append(flag);
     }else if(o.pendingCount>0){
      const pending=document.createElement('span');pending.className='pending-nomination-flag';
      pending.textContent='Pending nomination review: '+o.pendingCount;line.append(pending);
     }
+    (o.approvedCandidates||[]).forEach(candidate=>{
+     const name=document.createElement('p');name.className='admin-candidate-name';
+     name.textContent=candidate.name+' · '+candidate.department;line.append(name);
+    });
     card.append(line);
    });
-   box.append(card);
+   const printButton=document.createElement('button');printButton.type='button';printButton.className='secondary print-election-button';printButton.textContent='Print election summary';
+   printButton.addEventListener('click',()=>{
+    document.querySelectorAll('.admin-election-item').forEach(item=>item.classList.remove('print-selected'));
+    card.classList.add('print-selected');document.body.classList.add('printing-election');
+    window.print();document.body.classList.remove('printing-election');card.classList.remove('print-selected');
+   });
+   card.append(printButton);box.append(card);
   });
  }catch(error){box.textContent=error.message;}
 }
