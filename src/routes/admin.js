@@ -398,7 +398,7 @@ router.post('/nominations/:id/eligibility', requireAdmin(['super_admin','electio
     const r=await client.query(`SELECT n.id,n.eligibility_status,p.verification_status,e.status AS election_status
       FROM nominations n JOIN elections e ON e.id=n.election_id
       LEFT JOIN nomination_payments p ON p.nomination_id=n.id
-      WHERE n.id=$1 FOR UPDATE OF n`,[req.params.id]);
+      WHERE n.id=$1 FOR UPDATE OF n,e`,[req.params.id]);
     if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Nomination not found.'});}
     if(r.rows[0].eligibility_status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'This nomination has already been reviewed.'});}
     if(r.rows[0].election_status!=='nominations_open'){await client.query('ROLLBACK');return res.status(409).json({error:'Candidate eligibility decisions must be completed before nominations close.'});}
