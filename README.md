@@ -159,3 +159,18 @@ The department choices in the initial form are a starter list and must be checke
 ### Candidate eligibility review
 
 Payment verification and candidate eligibility are deliberately separate administrative decisions. A nomination remains pending until reviewed. The election administrator can approve or reject eligibility; approval is blocked unless the associated nomination payment has first been verified. Both decisions are recorded in the audit log.
+
+
+## Secret ballot voting
+
+The voting module separates voter participation from ballot selections. Students authenticate with their registered accounts and request a short-lived, single-use voting authorisation. The server stores only a hash of that authorisation alongside the voter identity. On submission, the server validates the authorisation and eligibility, writes the anonymous ballot and the voter participation record in the same database transaction, and consumes the authorisation. The ballot and selection tables contain no student/user identifier, and the ballot timestamp column is removed to reduce straightforward time-based correlation.
+
+The database enforces one participation record per student per election. Ballot submission validates that every office belongs to the election, each selected nomination is approved for that office, and selections do not exceed the configured seat count. Ballot selections cannot be edited through the application.
+
+Election administrators must close nominations before scheduling voting. Every office must have at least one approved candidate. Voting can be closed by an authorised administrator, and results can only be published after closure. Published results show candidate vote totals and overall participation.
+
+**Privacy qualification:** This design prevents ordinary application administrators from looking up a student's choices through the application data model. It is not a cryptographic end-to-end secret-ballot protocol against a fully privileged database operator, server operator, collusion, or external coercion. Production deployment should use tightly restricted database access, independent security review, backups and monitoring.
+
+## Build checks
+
+Run `npm run check` to syntax-check the application modules and browser script. Run `npm test` for automated tests. The project still requires a configured PostgreSQL database and deployment environment before it can be exercised end-to-end.
