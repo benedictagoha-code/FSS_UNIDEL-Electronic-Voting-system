@@ -30,7 +30,15 @@ app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draf
 app.use((req, res, next) => {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const origin = req.get('origin');
-  if (!origin) return next();
+  const fetchSite = req.get('sec-fetch-site');
+  // Fetch Metadata is an additional defence when a browser omits Origin.
+  // Reject cross-site and same-site-but-not-same-origin unsafe requests.
+  if (!origin) {
+    if (fetchSite && fetchSite !== 'same-origin') {
+      return res.status(403).json({ error: 'Cross-origin request blocked.' });
+    }
+    return next();
+  }
   try {
     const parsedOrigin = new URL(origin);
     const requestHost = req.get('host');
