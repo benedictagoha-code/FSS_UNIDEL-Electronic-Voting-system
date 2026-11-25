@@ -127,8 +127,15 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     assert.equal(officeResponse.status,201,'admin should create an office');
     const officeId = officeResponse.body.office.id;
 
-    const openNominations = await admin(`/api/admin/elections/${electionId}/open-nominations`,{method:'POST',body:{}});
-    assert.equal(openNominations.status,200,'admin should open nominations');
+    const concurrentOpenNominations = await Promise.all([
+      admin(`/api/admin/elections/${electionId}/open-nominations`,{method:'POST',body:{}}),
+      admin(`/api/admin/elections/${electionId}/open-nominations`,{method:'POST',body:{}})
+    ]);
+    assert.equal(concurrentOpenNominations.filter(x=>x.status===200).length,1,
+      'only one simultaneous administrator request may open nominations');
+    assert.equal(concurrentOpenNominations.filter(x=>x.status===409).length,1,
+      'the competing request must observe the already-open election');
+    const openNominations=concurrentOpenNominations.find(x=>x.status===200);
     // Database-level lifecycle guards must reject configuration changes after nominations open.
     await assert.rejects(
       () => pool.query("UPDATE elections SET title='Tampered election title' WHERE id=$1",[electionId]),
