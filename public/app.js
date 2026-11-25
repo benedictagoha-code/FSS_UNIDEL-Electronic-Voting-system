@@ -94,6 +94,7 @@ async function loadDashboard() {
   $('#studentLevel').textContent = currentUser.level + ' Level';
   try { await api('/api/admin/me'); $('#adminPanel').hidden = false; }
   catch { $('#adminPanel').hidden = true; }
+  await loadNominationCentre();
 }
 $('#logoutButton').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); }
@@ -144,3 +145,51 @@ async function moderateUser(userId, action) {
   try { await loadDashboard(); }
   catch { authView.hidden = false; dashboardView.hidden = true; }
 })();
+
+async function loadNominationCentre() {
+  const opportunities = $('#nominationOpportunities');
+  const mine = $('#myNominations');
+  if (!opportunities || !mine) return;
+  try {
+    const [available, submitted] = await Promise.all([api('/api/nominations/open'), api('/api/nominations/mine')]);
+    opportunities.replaceChildren();
+    if (!available.opportunities.length) {
+      const empty=document.createElement('p'); empty.className='muted'; empty.textContent='There are no open nomination opportunities at this time.'; opportunities.append(empty);
+    }
+    available.opportunities.forEach(item => {
+      const card=document.createElement('form'); card.className='opportunity-card';
+      const heading=document.createElement('strong'); heading.textContent=item.office_title;
+      const sub=document.createElement('small'); sub.textContent=item.election_title+' · '+item.seats+' seat(s) · Nomination fee: ₦'+(Number(item.nomination_fee_kobo)/100).toLocaleString('en-NG',{minimumFractionDigits:2});
+      const manifesto=document.createElement('textarea'); manifesto.name='manifesto'; manifesto.maxLength=5000; manifesto.placeholder='Optional manifesto (up to 5,000 characters)';
+      const channel=document.createElement('select'); channel.name='paymentChannel';
+      ['Zenith Bank','OPay','Moniepoint','Other bank transfer'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;channel.append(o);});
+      const ref=document.createElement('input'); ref.name='transactionReference'; ref.required=true; ref.minLength=4; ref.maxLength=120; ref.placeholder='Payment transaction reference';
+      const submit=document.createElement('button'); submit.type='submit'; submit.className='primary'; submit.textContent='Submit nomination';
+      const label1=document.createElement('label'); label1.textContent='Payment channel'; label1.append(channel);
+      const label2=document.createElement('label'); label2.textContent='Transaction reference'; label2.append(ref);
+      const label3=document.createElement('label'); label3.textContent='Manifesto (optional)'; label3.append(manifesto);
+      card.append(heading,sub,label1,label2,label3,submit);
+      card.addEventListener('submit',async ev=>{
+        ev.preventDefault(); submit.disabled=true; submit.textContent='Submitting…';
+        try{
+          const result=await api('/api/nominations',{method:'POST',body:JSON.stringify({electionId:item.election_id,officeId:item.office_id,manifesto:manifesto.value,paymentChannel:channel.value,transactionReference:ref.value})});
+          showNotice('Nomination submitted. Reference: '+result.nomination.reference+'. Payment verification is pending.');
+          await loadNominationCentre();
+        }catch(error){showNotice(error.message,'error');}
+        finally{submit.disabled=false;submit.textContent='Submit nomination';}
+      });
+      opportunities.append(card);
+    });
+    mine.replaceChildren();
+    if(!submitted.nominations.length){const empty=document.createElement('p');empty.className='muted';empty.textContent='You have not submitted any nominations yet.';mine.append(empty);}
+    submitted.nominations.forEach(n=>{
+      const row=document.createElement('div');row.className='nomination-row';
+      const info=document.createElement('div');const title=document.createElement('strong');title.textContent=n.office_title;
+      const details=document.createElement('small');details.textContent=n.election_title+' · '+n.reference+' · Payment: '+n.verification_status+' · Eligibility: '+n.eligibility_status;
+      info.append(title,details);
+      const download=document.createElement('a');download.className='download-link';download.href='/api/nominations/'+encodeURIComponent(n.id)+'/form.pdf';download.textContent='Download PDF form';
+      row.append(info,download);mine.append(row);
+    });
+  }catch(error){opportunities.textContent=error.message;mine.textContent='Unable to load nomination records.';}
+}
+$('#refreshNominations')?.addEventListener('click',loadNominationCentre);
