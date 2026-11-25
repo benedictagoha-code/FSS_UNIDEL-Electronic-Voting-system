@@ -106,8 +106,13 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       [financeHash]
     );
     const financeId = financeUser.rows[0].id;
-    // This finance-only test account deliberately has no student profile,
-    // so it must not be included in the frozen voter roll.
+    // Administrator accounts are student accounts on this platform, so this
+    // finance officer remains on the voter roll and retains student voting rights.
+    await pool.query(
+      `INSERT INTO student_profiles(user_id,full_name,sex,department,level,matric_type)
+       VALUES($1,'Test Finance Officer','Female','Economics','400','matriculation')`,
+      [financeId]
+    );
     await pool.query(
       "INSERT INTO admin_roles(user_id,role,granted_by) VALUES($1,'finance_admin',$2)",
       [financeId,adminId]
@@ -352,15 +357,15 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
 
     const participation = await admin(`/api/admin/elections/${electionId}/participation`);
     assert.equal(participation.status,200,'admin should view aggregate turnout');
-    assert.equal(participation.body.eligibleVoters,2,
+    assert.equal(participation.body.eligibleVoters,3,
       'turnout denominator must use the frozen active eligible voter roll');
     assert.ok(participation.body.participatingVoters>=1);
     const voterSnapshot = await pool.query(
       'SELECT COUNT(*)::int AS count FROM election_voter_snapshots WHERE election_id=$1',
       [electionId]
     );
-    assert.equal(voterSnapshot.rows[0].count,2,
-      'voting opening must snapshot active eligible students and exclude the administratively excluded voter');
+    assert.equal(voterSnapshot.rows[0].count,3,
+      'voting opening must snapshot active eligible students and include active student-administrators and exclude the administratively excluded voter');
     assert.ok(!JSON.stringify(participation.body).includes(candidateNomination),'turnout report must not expose ballot selections');
 
     const hiddenResults = await candidate(`/api/voting/${electionId}/results`);
