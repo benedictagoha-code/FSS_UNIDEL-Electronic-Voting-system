@@ -279,6 +279,14 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'database must reject a ballot selection tied to another election'
     );
 
+    // Existing sessions must not retain privileged access after account suspension.
+    await pool.query("UPDATE users SET account_status='suspended' WHERE id=$1",[adminId]);
+    const suspendedAdminAccess = await admin('/api/admin/me');
+    assert.equal(suspendedAdminAccess.status,403,'suspended administrator must immediately lose privileged route access');
+    await pool.query("UPDATE users SET account_status='active' WHERE id=$1",[adminId]);
+    const restoredAdminAccess = await admin('/api/admin/me');
+    assert.equal(restoredAdminAccess.status,200,'restored administrator should regain privileged access');
+
   } finally {
     if (server) await new Promise(resolve=>server.close(resolve));
     await pool.query(`TRUNCATE ${tables.join(',')} RESTART IDENTITY CASCADE`);
