@@ -79,6 +79,14 @@ router.post('/:electionId/authorise', async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const activeUser = await client.query(
+      "SELECT id FROM users WHERE id=$1 AND account_status='active' FOR UPDATE",
+      [req.session.userId]
+    );
+    if (!activeUser.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Your student account is not active.' });
+    }
     const election = await client.query(
       `SELECT id FROM elections WHERE id=$1 AND status='voting_open'
        AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
@@ -130,6 +138,14 @@ router.post('/:electionId/ballot', async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const activeUser = await client.query(
+      "SELECT id FROM users WHERE id=$1 AND account_status='active' FOR UPDATE",
+      [req.session.userId]
+    );
+    if (!activeUser.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Your student account is not active.' });
+    }
     const election = await client.query(
       `SELECT id FROM elections WHERE id=$1 AND status='voting_open'
        AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
@@ -191,8 +207,8 @@ router.post('/:electionId/ballot', async (req, res, next) => {
     for (const office of submitted) {
       for (const nominationId of office.nominationIds) {
         await client.query(
-          'INSERT INTO ballot_selections(ballot_id,office_id,candidate_nomination_id) VALUES($1,$2,$3)',
-          [ballot.rows[0].id, office.officeId, nominationId]
+          'INSERT INTO ballot_selections(ballot_id,election_id,office_id,candidate_nomination_id) VALUES($1,$2,$3,$4)',
+          [ballot.rows[0].id, req.params.electionId, office.officeId, nominationId]
         );
       }
     }
