@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import PDFDocument from 'pdfkit';\nimport crypto from 'node:crypto';
+import PDFDocument from 'pdfkit';
+import crypto from 'node:crypto';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import { pool } from '../db.js';
