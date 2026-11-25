@@ -16,11 +16,34 @@ const publicDir = join(dirname(fileURLToPath(import.meta.url)), '../public');
 const PgSession = connectPgSimple(session);
 
 app.disable('x-powered-by');
+if (process.env.NODE_ENV === 'production') {
+  // The application is expected to run behind one trusted TLS-terminating proxy.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+}
 app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'], connectSrc: ["'self'"], objectSrc: ["'none'"], baseUri: ["'self'"], frameAncestors: ["'none'"] } } }));
 app.use(express.json({ limit: '20kb' }));
 app.use(express.static(publicDir, { index: 'index.html', extensions: ['html'] }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }));
+// Reject cross-origin browser state changes. Non-browser clients without an
+// Origin header remain supported; browser form/fetch submissions carry Origin.
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const origin = req.get('origin');
+  if (!origin) return next();
+  try {
+    const parsedOrigin = new URL(origin);
+    const requestHost = req.get('host');
+    const expectedProtocol = req.secure ? 'https:' : 'http:';
+    if (parsedOrigin.host !== requestHost || parsedOrigin.protocol !== expectedProtocol) {
+      return res.status(403).json({ error: 'Cross-origin request blocked.' });
+    }
+    return next();
+  } catch {
+    return res.status(403).json({ error: 'Invalid request origin.' });
+  }
+});
+
 app.use(session({
   name: 'fss.sid',
   store: new PgSession({ pool, tableName: 'user_sessions', createTableIfMissing: true }),
