@@ -103,7 +103,7 @@ router.post('/', candidate, async (req, res, next) => {
     res.status(201).json({ nomination: {...inserted.rows[0], officeTitle:item.title, amountKobo:item.nomination_fee_kobo, paymentStatus:'pending'} });
   } catch (error) {
     await client.query('ROLLBACK');
-    if (error.code === '23505') return res.status(409).json({ error: 'You have already submitted a nomination for this office in this election.' });
+    if (error.code === '23505') return res.status(409).json({ error: 'This nomination conflicts with an existing nomination or payment transaction reference.' });
     next(error);
   } finally { client.release(); }
 });
