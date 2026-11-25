@@ -1,4 +1,6 @@
 import express from 'express';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import helmet from 'helmet';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
@@ -8,11 +10,13 @@ import authRoutes from './routes/auth.js';
 import adminRoutes from './routes/admin.js';
 
 const app = express();
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), '../public');
 const PgSession = connectPgSimple(session);
 
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: { directives: { defaultSrc: ["'self'"], scriptSrc: ["'self'"], styleSrc: ["'self'"], imgSrc: ["'self'", 'data:'], connectSrc: ["'self'"], objectSrc: ["'none'"], baseUri: ["'self'"], frameAncestors: ["'none'"] } } }));
 app.use(express.json({ limit: '20kb' }));
+app.use(express.static(publicDir, { index: 'index.html', extensions: ['html'] }));
 app.use(express.urlencoded({ extended: false, limit: '20kb' }));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300, standardHeaders: 'draft-7', legacyHeaders: false }));
 app.use(session({
