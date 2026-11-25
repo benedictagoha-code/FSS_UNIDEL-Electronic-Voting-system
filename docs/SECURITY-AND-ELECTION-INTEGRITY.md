@@ -81,3 +81,5 @@ The implementation reduces ordinary application-level linkage. It does not claim
 - Audit entries identify the acting administrator and retain event metadata, but the register does not query ballot selections or expose an individual's candidate choices.
 - Results publication is a separate authorised transition from `closed` to `results_published`; the transition and its audit event are committed together.
 - Ordinary student accounts cannot access the audit register. Audit access itself should be monitored and the underlying database audit records retained in protected backups.
+
+- PostgreSQL triggers reject UPDATE and DELETE operations on audit records. Any correction must be captured as a new audit event; routine test cleanup uses disposable database truncation only.
