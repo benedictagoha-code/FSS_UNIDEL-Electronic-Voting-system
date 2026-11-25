@@ -57,6 +57,64 @@ router.get('/mine', candidate, async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+const withdrawSchema = z.object({
+  reason: z.string().trim().min(10).max(1000)
+});
+
+// A candidate may withdraw their own nomination only while the nomination
+// window is open. The nomination/payment rows remain in place for audit.
+router.post('/:id/withdraw', candidate, async (req, res, next) => {
+  const parsed = withdrawSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Provide a withdrawal reason of at least 10 characters.' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT n.id,n.eligibility_status,e.id AS election_id,e.status AS election_status,
+              e.nomination_opens_at,e.nomination_closes_at
+       FROM nominations n JOIN elections e ON e.id=n.election_id
+       WHERE n.id=$1 AND n.candidate_user_id=$2
+       FOR UPDATE OF e,n`,
+      [req.params.id, req.session.userId]
+    );
+    if (!result.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Nomination not found.' });
+    }
+    const nomination = result.rows[0];
+    const now = new Date();
+    if (nomination.election_status !== 'nominations_open' ||
+        (nomination.nomination_opens_at && new Date(nomination.nomination_opens_at) > now) ||
+        (nomination.nomination_closes_at && new Date(nomination.nomination_closes_at) < now)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'A nomination can only be withdrawn while its nomination window is open.' });
+    }
+    if (!['pending','approved'].includes(nomination.eligibility_status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This nomination cannot be withdrawn in its current status.' });
+    }
+    await client.query(
+      "UPDATE nominations SET eligibility_status='withdrawn' WHERE id=$1",
+      [nomination.id]
+    );
+    await client.query(
+      `INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
+       VALUES($1,'nomination.withdrawn','nomination',$2,$3::jsonb)`,
+      [req.session.userId, nomination.id, JSON.stringify({ reason: parsed.data.reason, electionId: nomination.election_id })]
+    );
+    await client.query('COMMIT');
+    return res.json({
+      message: 'Nomination withdrawn. The nomination and payment history have been retained.',
+      nomination: { id: nomination.id, eligibilityStatus: 'withdrawn' }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return next(error);
+  } finally {
+    client.release();
+  }
+});
+
 const submitSchema = z.object({
   electionId: z.string().uuid(),
   officeId: z.string().uuid(),
