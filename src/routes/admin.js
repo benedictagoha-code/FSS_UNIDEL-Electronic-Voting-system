@@ -467,7 +467,10 @@ router.put('/elections/:id/voters/:userId/eligibility', requireAdmin(['super_adm
       await client.query('ROLLBACK');
       return res.status(409).json({error:'Voter eligibility is locked once voting opens.'});
     }
-    const student = await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[req.params.userId]);
+    const student = await client.query(
+      'SELECT u.id FROM users u JOIN student_profiles sp ON sp.user_id=u.id WHERE u.id=$1 FOR UPDATE OF u',
+      [req.params.userId]
+    );
     if (!student.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({error:'Student account not found.'});
