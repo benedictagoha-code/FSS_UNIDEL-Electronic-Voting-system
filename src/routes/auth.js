@@ -17,22 +17,22 @@ const registerSchema = z.object({
   department: z.string().trim().min(2).max(120),
   level: z.enum(['100','200','300','400','500','600']),
   matricType: z.enum(['matriculation','registration']),
-  matricNumber: z.string().trim().transform(v => v.toUpperCase()).regex(matricPattern),
+  matricNumber: z.string().trim().toUpperCase().regex(matricPattern),
   phoneNumber: z.string().trim().regex(phonePattern, 'Use international format, e.g. +2348012345678.'),
   password: passwordSchema
 });
 
 const loginSchema = z.object({
-  matricNumber: z.string().trim().transform(v => v.toUpperCase()).regex(matricPattern),
+  matricNumber: z.string().trim().toUpperCase().regex(matricPattern),
   password: z.string().min(1).max(128)
 });
 
 const resetRequestSchema = z.object({
-  matricNumber: z.string().trim().transform(v => v.toUpperCase()).regex(matricPattern)
+  matricNumber: z.string().trim().toUpperCase().regex(matricPattern)
 });
 
 const resetCompleteSchema = z.object({
-  matricNumber: z.string().trim().transform(v => v.toUpperCase()).regex(matricPattern),
+  matricNumber: z.string().trim().toUpperCase().regex(matricPattern),
   otp: z.string().regex(/^\d{6}$/),
   newPassword: passwordSchema
 });
@@ -100,6 +100,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
     const user = result.rows[0];
     const valid = user && await argon2.verify(user.password_hash, parsed.data.password);
     if (!valid || user.account_status !== 'active') return res.status(401).json({ error: 'Invalid credentials or account unavailable.' });
+    await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.userId = user.id;
     return res.json({ message: 'Sign-in successful.', user: { fullName: user.full_name } });
   } catch (error) { return next(error); }
