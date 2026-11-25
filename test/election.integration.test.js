@@ -216,6 +216,15 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       authorisationToken:authorisation.body.authorisationToken,
       selections:[{officeId,nominationIds:[candidateNomination]}]
     };
+    // Eligibility and account status are rechecked at submission, not only
+    // when the one-time authorisation token is issued.
+    await pool.query("UPDATE users SET account_status='suspended' WHERE matric_number='PSY-TEST-4001'");
+    const suspendedVoterSubmission = await candidate(`/api/voting/${electionId}/ballot`,{
+      method:'POST',body:ballotPayload
+    });
+    assert.equal(suspendedVoterSubmission.status,403,
+      'a suspended student must not submit a ballot even with a previously issued token');
+    await pool.query("UPDATE users SET account_status='active' WHERE matric_number='PSY-TEST-4001'");
     const simultaneousBallots = await Promise.all([
       candidate(`/api/voting/${electionId}/ballot`,{method:'POST',body:ballotPayload}),
       candidate(`/api/voting/${electionId}/ballot`,{method:'POST',body:ballotPayload})
@@ -299,6 +308,12 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     await pool.query("UPDATE users SET account_status='active' WHERE id=$1",[adminId]);
     const restoredAdminAccess = await admin('/api/admin/me');
     assert.equal(restoredAdminAccess.status,200,'restored administrator should regain privileged access');
+    await pool.query("UPDATE users SET account_status='deactivated' WHERE id=$1",[adminId]);
+    const deactivatedAdminAccess = await admin('/api/admin/me');
+    assert.equal(deactivatedAdminAccess.status,403,'deactivated administrator must immediately lose privileged route access');
+    await pool.query("UPDATE users SET account_status='active' WHERE id=$1",[adminId]);
+    const reactivatedAdminAccess = await admin('/api/admin/me');
+    assert.equal(reactivatedAdminAccess.status,200,'reactivated administrator should regain privileged access');
 
     // Concurrent attempts to demote both super administrators must not remove
     // the final super-admin safeguard.
