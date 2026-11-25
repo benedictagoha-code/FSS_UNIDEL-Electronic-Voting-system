@@ -4,7 +4,7 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Project status
 
-**Implementation in progress; not production-ready.** The repository contains a Node.js/Express application, PostgreSQL migrations, student registration/login/password-reset flows, administration tools, nominations and manual payment review, election lifecycle controls, secret-ballot submission, voter eligibility administration and aggregate participation reporting. Termii SMS adapter is implemented but not yet connected to a live Termii account; no production database, payment integration, hosting or live election is configured. Database integration tests, independent security review and a mock election remain outstanding.
+**Implementation in progress; not production-ready.** The repository contains a Node.js/Express application, PostgreSQL migrations, student registration/login/password-reset flows, administration tools, nominations and manual payment review, election lifecycle controls, secret-ballot submission, voter eligibility administration and aggregate participation reporting. Termii SMS adapter is implemented but not yet connected to a live Termii account; no production database, payment integration, hosting or live election is configured. Automated PostgreSQL integration tests run in GitHub Actions; independent security review, live Termii verification and a supervised mock election remain outstanding.
 
 ## Agreed functional requirements
 
