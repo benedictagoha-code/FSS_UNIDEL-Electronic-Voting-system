@@ -8,7 +8,7 @@ try {
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   )`);
   const directory = new URL('../db/migrations/', import.meta.url);
-  const files = (await readdir(directory)).filter(name => /^\\d+_[a-z0-9_-]+\\.sql$/i.test(name)).sort();
+  const files = (await readdir(directory)).filter(name => /^\d+_[a-z0-9_-]+\.sql$/i.test(name)).sort();
   for (const filename of files) {
     const existing = await pool.query('SELECT 1 FROM schema_migrations WHERE filename=$1', [filename]);
     if (existing.rowCount) { console.log('Already applied:', filename); continue; }
