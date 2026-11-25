@@ -169,4 +169,99 @@ router.post('/users/:userId/moderation', requireAdmin(['super_admin','moderator'
   } finally { client.release(); }
 });
 
+
+// Election setup and nomination payment review.
+const electionSchema = z.object({
+  title: z.string().trim().min(3).max(180),
+  description: z.string().max(3000).optional().default(''),
+  nominationOpensAt: z.string().datetime().optional(),
+  nominationClosesAt: z.string().datetime().optional()
+});
+const officeSchema = z.object({
+  title: z.string().trim().min(2).max(120),
+  nominationFeeNaira: z.number().finite().min(0).max(100000000),
+  seats: z.number().int().min(1).max(20).optional().default(1)
+});
+const paymentSettingsSchema = z.object({
+  bankName: z.string().trim().min(2).max(100),
+  accountName: z.string().trim().min(2).max(180),
+  accountNumber: z.string().trim().min(6).max(30),
+  instructions: z.string().max(2000).optional().default('')
+});
+const paymentDecisionSchema = z.object({ decision: z.enum(['verified','rejected']), reason: z.string().trim().min(5).max(1000) });
+
+router.post('/elections', requireAdmin(['super_admin','election_admin']), async (req,res,next)=>{
+  const parsed=electionSchema.safeParse(req.body);
+  if(!parsed.success) return res.status(400).json({error:'Provide a valid election title and nomination dates.'});
+  const d=parsed.data;
+  if(d.nominationOpensAt&&d.nominationClosesAt&&new Date(d.nominationClosesAt)<=new Date(d.nominationOpensAt)) return res.status(400).json({error:'Nomination closing time must be after opening time.'});
+  try{
+    const r=await pool.query(
+      "INSERT INTO elections(title,description,status,nomination_opens_at,nomination_closes_at,created_by) VALUES($1,$2,'draft',$3,$4,$5) RETURNING *",
+      [d.title,d.description,d.nominationOpensAt||null,d.nominationClosesAt||null,req.session.userId]);
+    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.created','election',$2)",[req.session.userId,r.rows[0].id]);
+    res.status(201).json({election:r.rows[0]});
+  }catch(e){next(e);}
+});
+router.post('/elections/:id/offices', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const p=officeSchema.safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Provide a valid office title, fee and number of seats.'});
+  try{
+    const r=await pool.query("INSERT INTO election_offices(election_id,title,nomination_fee_kobo,seats) SELECT id,$2,$3,$4 FROM elections WHERE id=$1 AND status='draft' RETURNING *",
+      [req.params.id,p.data.title,Math.round(p.data.nominationFeeNaira*100),p.data.seats]);
+    if(!r.rowCount)return res.status(404).json({error:'Draft election not found.'});
+    res.status(201).json({office:r.rows[0]});
+  }catch(e){if(e.code==='23505')return res.status(409).json({error:'That office already exists in this election.'});next(e);}
+});
+router.post('/elections/:id/open-nominations', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  try{
+    const r=await pool.query("UPDATE elections SET status='nominations_open' WHERE id=$1 AND status='draft' AND EXISTS(SELECT 1 FROM election_offices WHERE election_id=$1) RETURNING id,title",
+      [req.params.id]);
+    if(!r.rowCount)return res.status(409).json({error:'Election must be a draft with at least one office before nominations can open.'});
+    await pool.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.nominations_opened','election',$2)",[req.session.userId,req.params.id]);
+    res.json({election:r.rows[0],message:'Nominations are now open.'});
+  }catch(e){next(e);}
+});
+router.put('/nomination-payment-settings', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
+  const p=paymentSettingsSchema.safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Provide valid payment account details.'});
+  try{
+    await pool.query(`INSERT INTO nomination_payment_settings(id,bank_name,account_name,account_number,payment_instructions,updated_by)
+      VALUES(1,$1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET bank_name=EXCLUDED.bank_name,account_name=EXCLUDED.account_name,
+      account_number=EXCLUDED.account_number,payment_instructions=EXCLUDED.payment_instructions,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
+      [p.data.bankName,p.data.accountName,p.data.accountNumber,p.data.instructions,req.session.userId]);
+    res.json({message:'Nomination payment instructions updated.'});
+  }catch(e){next(e);}
+});
+router.get('/nomination-payment-settings', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
+  try{const r=await pool.query("SELECT bank_name,account_name,account_number,payment_instructions,updated_at FROM nomination_payment_settings WHERE id=1");res.json({settings:r.rows[0]||null});}
+  catch(e){next(e);}
+});
+router.get('/nomination-payments', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
+  try{
+    const r=await pool.query(`SELECT p.id,p.amount_kobo,p.payment_channel,p.transaction_reference,p.verification_status,p.submitted_at,
+      n.id AS nomination_id,n.reference,e.title AS election_title,o.title AS office_title,s.full_name,u.matric_number,s.department
+      FROM nomination_payments p JOIN nominations n ON n.id=p.nomination_id JOIN elections e ON e.id=n.election_id
+      JOIN election_offices o ON o.id=n.office_id JOIN users u ON u.id=n.candidate_user_id JOIN student_profiles s ON s.user_id=u.id
+      ORDER BY CASE p.verification_status WHEN 'pending' THEN 0 ELSE 1 END,p.submitted_at DESC LIMIT 200`);
+    res.json({payments:r.rows});
+  }catch(e){next(e);}
+});
+router.post('/nomination-payments/:id/decision', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
+  const p=paymentDecisionSchema.safeParse(req.body);
+  if(!p.success)return res.status(400).json({error:'Provide a verification decision and reason.'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const r=await client.query("SELECT id,verification_status,nomination_id FROM nomination_payments WHERE id=$1 FOR UPDATE",[req.params.id]);
+    if(!r.rowCount){await client.query('ROLLBACK');return res.status(404).json({error:'Payment record not found.'});}
+    if(r.rows[0].verification_status!=='pending'){await client.query('ROLLBACK');return res.status(409).json({error:'This payment has already been reviewed.'});}
+    await client.query("UPDATE nomination_payments SET verification_status=$1,verified_by=$2,verified_at=NOW() WHERE id=$3",[p.data.decision,req.session.userId,req.params.id]);
+    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'nomination_payment',$3,$4::jsonb)",
+      [req.session.userId,'nomination_payment.'+p.data.decision,req.params.id,JSON.stringify({reason:p.data.reason,nominationId:r.rows[0].nomination_id})]);
+    await client.query('COMMIT');
+    res.json({message:'Payment '+p.data.decision+'. Candidate eligibility remains a separate decision.'});
+  }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
+});
+
 export default router;
