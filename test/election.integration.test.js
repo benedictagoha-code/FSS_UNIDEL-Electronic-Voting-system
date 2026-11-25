@@ -150,6 +150,23 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const financeCannotReadAudit = await finance('/api/admin/audit-logs');
     assert.equal(financeCannotReadAudit.status,403,'finance role must not read the super-admin audit register');
 
+    const paymentSettingsUpdate = await finance('/api/admin/nomination-payment-settings',{
+      method:'PUT',body:{
+        bankName:'Zenith Bank',accountName:'FSS Election Account',
+        accountNumber:'1234567890',instructions:'Use nomination reference as payment narration.'
+      }
+    });
+    assert.equal(paymentSettingsUpdate.status,200,'finance administrator should configure nomination payment instructions');
+    const paymentSettingsAudit = await pool.query(
+      `SELECT action,metadata FROM audit_logs WHERE action='nomination_payment_settings.updated' ORDER BY id DESC LIMIT 1`
+    );
+    assert.equal(paymentSettingsAudit.rows[0].action,'nomination_payment_settings.updated',
+      'payment account changes must be audited');
+    assert.equal(paymentSettingsAudit.rows[0].metadata.accountNumberLast4,'7890',
+      'payment settings audit must record only the account number suffix');
+    assert.ok(!JSON.stringify(paymentSettingsAudit.rows[0].metadata).includes('1234567890'),
+      'payment settings audit must not store the full bank account number');
+
     const moderatorHash = await argon2.hash('Moderator-Test-Password-2026', { type: argon2.argon2id });
     const moderatorUser = await pool.query(
       `INSERT INTO users(matric_number,phone_e164,password_hash)
@@ -283,10 +300,21 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const payment = payments.body.payments.find(item => item.nomination_id===nominationId);
     assert.ok(payment,'payment record should be visible to finance administrators');
 
-    const paymentDecision = await admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
-      method:'POST',body:{decision:'verified',reason:'Mock payment verified for integration test.'}
-    });
-    assert.equal(paymentDecision.status,200,'finance admin should verify payment');
+    const simultaneousPaymentDecisions = await Promise.all([
+      admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
+        method:'POST',body:{decision:'verified',reason:'Mock payment verified for integration test.'}
+      }),
+      admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
+        method:'POST',body:{decision:'rejected',reason:'Conflicting concurrent decision test.'}
+      })
+    ]);
+    assert.equal(simultaneousPaymentDecisions.filter(x=>x.status===200).length,1,
+      'only one concurrent payment review may be accepted');
+    assert.equal(simultaneousPaymentDecisions.filter(x=>x.status===409).length,1,
+      'the second payment review must see the completed decision and be rejected');
+    const paymentStatus = await pool.query('SELECT verification_status FROM nomination_payments WHERE id=$1',[payment.id]);
+    assert.equal(paymentStatus.rows[0].verification_status,'verified',
+      'the accepted payment verification must remain authoritative');
 
     const nominationDecision = await admin(`/api/admin/nominations/${nominationId}/eligibility`,{
       method:'POST',body:{decision:'approved',reason:'Mock candidate meets test requirements.'}
