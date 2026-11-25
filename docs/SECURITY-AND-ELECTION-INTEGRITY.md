@@ -93,3 +93,8 @@ After a password reset is successfully verified, the application updates the Arg
 ## Database-enforced election lifecycle
 
 PostgreSQL enforces the election status sequence: draft → nominations open → nominations closed → voting open → closed → results published. Cancellation is permitted only before voting begins. Skipping a stage or reopening a completed stage is rejected by a database trigger. Election title, description and nomination-window settings become immutable once nominations have opened. Office creation, modification and deletion are restricted to draft elections. These protections apply even if an application route is bypassed.
+
+
+## Ballot immutability and voting-window enforcement
+
+PostgreSQL rejects ballot, selection and voter-participation updates or deletions. Ballot and selection inserts are accepted only while the election is in the voting-open state; database row locks coordinate these checks with election closure. The application also validates eligibility, one-use authorisation and candidate/office consistency inside a transaction. These controls make direct database tampering and route bypass materially harder, but do not make the system invulnerable: production security still depends on hardened hosting, restricted database credentials, protected secrets, patching, backups, monitoring, independent testing and incident response.
