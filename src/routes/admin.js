@@ -474,4 +474,48 @@ router.put('/elections/:id/voters/:userId/eligibility', requireAdmin(['super_adm
 });
 
 
+router.get('/elections/:id/participation', requireAdmin(['super_admin','election_admin','results_officer']), async(req,res,next) => {
+  try {
+    const election = await pool.query('SELECT id,title,status FROM elections WHERE id=$1',[req.params.id]);
+    if (!election.rowCount) return res.status(404).json({error:'Election not found.'});
+    const [totals,departments] = await Promise.all([
+      pool.query(
+        `WITH eligible AS (
+           SELECT u.id FROM users u
+           LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
+           WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
+         )
+         SELECT COUNT(*)::int AS eligible_voters,
+           COUNT(vp.id)::int AS participating_voters
+         FROM eligible e
+         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.id`,
+        [req.params.id]
+      ),
+      pool.query(
+        `WITH eligible AS (
+           SELECT u.id,p.department FROM users u
+           JOIN student_profiles p ON p.user_id=u.id
+           LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
+           WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
+         )
+         SELECT e.department,COUNT(*)::int AS eligible_voters,COUNT(vp.id)::int AS participating_voters
+         FROM eligible e
+         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.id
+         GROUP BY e.department ORDER BY e.department`,
+        [req.params.id]
+      )
+    ]);
+    const eligible = totals.rows[0].eligible_voters;
+    const participated = totals.rows[0].participating_voters;
+    res.json({
+      election:election.rows[0],
+      eligibleVoters:eligible,
+      participatingVoters:participated,
+      turnoutPercent:eligible ? Number((participated*100/eligible).toFixed(2)) : 0,
+      departments:departments.rows
+    });
+  } catch(error) { next(error); }
+});
+
+
 export default router;
