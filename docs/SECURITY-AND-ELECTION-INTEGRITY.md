@@ -49,3 +49,16 @@
 - No automatic payment confirmation in the initial release.
 - No administrator ability to inspect or alter an individual's ballot choices.
 - No production use until hosting, database, SMS delivery, backup and security testing are complete.
+
+
+## Secret ballot and verifiable participation
+
+- Authentication identifies the eligible voter before a ballot is issued.
+- A short-lived, random, single-use authorisation is returned to the authenticated browser; only its SHA-256 hash is stored with the voter identity.
+- The authorisation is consumed when the ballot is accepted. The ballot row and its selections have no voter identifier or participation-row reference.
+- The participation table records the voter and election with a unique constraint, independently of ballot content.
+- Ballot selections are immutable through public application routes; no administrator endpoint exposes individual ballot records.
+- Election status transitions are controlled: nominations open → nominations closed → voting open → closed → results published.
+- Results endpoints return aggregate candidate totals only after publication.
+
+The implementation reduces ordinary application-level linkage. It does not claim cryptographic unlinkability against privileged infrastructure operators; independent review and restricted database access remain necessary before a high-stakes election.
