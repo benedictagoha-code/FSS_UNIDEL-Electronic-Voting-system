@@ -143,3 +143,14 @@ A responsive web interface is now served from the application root (`/`).
 - Frontend assets are served locally; no third-party JavaScript or CSS CDN is used.
 
 The department choices in the initial form are a starter list and must be checked against the Faculty's approved current structure before public launch.
+
+
+## Candidate nomination and payment workflow
+
+- Election administrators can create draft elections and configure offices, seat counts and nomination fees.
+- Nominations can be opened only after at least one office is configured.
+- Signed-in students can view open nomination opportunities, submit one nomination per office/election and provide their payment channel and transaction reference.
+- Nomination records receive unique references. Candidates can download an individual PDF nomination form for each submitted nomination.
+- Finance administrators can configure payment account instructions and review pending payment records. Payment verification is separate from eligibility approval.
+- The initial workflow records transaction references for manual verification; it does not yet accept receipt uploads or connect to bank/payment APIs.
+- Run `npm run db:migrate` to apply numbered SQL migrations. Applied migrations are tracked in `schema_migrations`.
