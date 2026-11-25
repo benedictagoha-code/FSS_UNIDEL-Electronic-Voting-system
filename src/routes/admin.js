@@ -110,6 +110,38 @@ router.get('/me', requireAdmin(), (req, res) => {
   res.json({ roles: req.adminRoles });
 });
 
+ 
+// Read-only audit register. Ballot selections and authentication secrets are never queried here.
+router.get('/audit-logs', requireAdmin(['super_admin']), async (req, res, next) => {
+  const limit = Math.min(Math.max(Number.parseInt(req.query.limit || '50', 10) || 50, 1), 100);
+  const offset = Math.max(Number.parseInt(req.query.offset || '0', 10) || 0, 0);
+  const action = String(req.query.action || '').trim().slice(0, 100);
+  const entityType = String(req.query.entityType || '').trim().slice(0, 80);
+  try {
+    const [logs, count] = await Promise.all([
+      pool.query(
+        `SELECT al.id, al.action, al.entity_type, al.entity_id, al.metadata, al.created_at,
+                p.full_name AS actor_name, u.matric_number AS actor_matric_number
+         FROM audit_logs al
+         LEFT JOIN users u ON u.id = al.actor_user_id
+         LEFT JOIN student_profiles p ON p.user_id = u.id
+         WHERE ($1::text = '' OR al.action ILIKE '%' || $1 || '%')
+           AND ($2::text = '' OR al.entity_type = $2)
+         ORDER BY al.created_at DESC, al.id DESC
+         LIMIT $3 OFFSET $4`,
+        [action, entityType, limit, offset]
+      ),
+      pool.query(
+        `SELECT COUNT(*)::int AS total FROM audit_logs
+         WHERE ($1::text = '' OR action ILIKE '%' || $1 || '%')
+           AND ($2::text = '' OR entity_type = $2)`,
+        [action, entityType]
+      )
+    ]);
+    res.json({ logs: logs.rows, total: count.rows[0].total, limit, offset });
+  } catch (error) { next(error); }
+});
+
 router.get('/users', requireAdmin(['super_admin','moderator']), async (req, res, next) => {
   const search = String(req.query.search || '').trim().slice(0, 100);
   const status = ['active','suspended','deactivated'].includes(req.query.status) ? req.query.status : null;
