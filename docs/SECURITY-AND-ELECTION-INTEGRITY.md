@@ -102,3 +102,13 @@ PostgreSQL rejects ballot, selection and voter-participation updates or deletion
 ## Results visibility
 
 Interim vote totals are not exposed to students, candidates or the public while voting is open. Results remain unavailable until voting has closed and an authorised results officer or super administrator publishes them. The published results board refreshes automatically every 15 seconds. Publication is a one-way lifecycle transition; no tally is disclosed during the live voting period.
+
+## Browser request and login hardening
+
+- State-changing requests reject mismatched Origin headers and use Fetch Metadata (Sec-Fetch-Site) as a second browser-side signal. Cross-site requests are rejected even when an Origin header is absent. Non-browser clients that send neither header remain supported; production integrations must authenticate independently and must not rely on browser cookies.
+- Login performs an Argon2id verification against a dummy hash when the submitted student number does not exist. This reduces (but cannot completely eliminate) timing differences that could otherwise help enumerate registered student numbers.
+- Login and password-reset endpoints are rate-limited. The built-in Express rate-limit memory store is suitable only for a single application process; a multi-instance production deployment must use a shared rate-limit store and monitor throttling events.
+
+## Production database privilege separation
+
+Use separate PostgreSQL identities for schema migrations and normal application traffic. The migration identity may own schema objects and apply numbered migrations; the runtime identity should receive only the minimum required table and sequence privileges and must not own the schema or have permission to disable triggers, alter tables, or change database roles. Keep database administration credentials outside the application environment. This separation is essential because database triggers cannot protect election records from an operator who can alter or disable those triggers.
