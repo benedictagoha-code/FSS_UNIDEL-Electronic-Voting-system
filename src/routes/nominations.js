@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import PDFDocument from 'pdfkit';
+import crypto from 'node:crypto';
 import { z } from 'zod';
 import { pool } from '../db.js';
 import { requireAdmin } from '../middleware/requireAdmin.js';
@@ -100,7 +101,7 @@ router.post('/', candidate, async (req, res, next) => {
   } finally { client.release(); }
 });
 
-function cryptoRandom() { return Math.random().toString(36).slice(2,10).toUpperCase(); }
+function cryptoRandom() { return crypto.randomBytes(5).toString('hex').toUpperCase(); }
 
 router.get('/:id/form.pdf', candidate, async (req, res, next) => {
   try {
