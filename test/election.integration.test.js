@@ -368,6 +368,26 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       method:'POST',body:{reason:'Trying to withdraw a second time.'}
     });
     assert.equal(repeatWithdrawal.status,409,'a withdrawn nomination must not be transitioned again');
+    await assert.rejects(
+      () => pool.query('DELETE FROM nominations WHERE id=$1',[withdrawalId]),
+      error => error.code==='55000',
+      'database must reject deletion of nomination history'
+    );
+    await assert.rejects(
+      () => pool.query('DELETE FROM nomination_payments WHERE nomination_id=$1',[withdrawalId]),
+      error => error.code==='55000',
+      'database must reject deletion of nomination payment history'
+    );
+    await assert.rejects(
+      () => pool.query("UPDATE nomination_payments SET transaction_reference='ALTERED-REFERENCE' WHERE nomination_id=$1",[withdrawalId]),
+      error => error.code==='55000',
+      'database must reject edits to submitted payment details'
+    );
+    await assert.rejects(
+      () => pool.query("UPDATE nominations SET manifesto='Altered after submission' WHERE id=$1",[withdrawalId]),
+      error => error.code==='55000',
+      'database must reject edits to submitted nomination details'
+    );
 
     const simultaneousPaymentDecisions = await Promise.all([
       admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
