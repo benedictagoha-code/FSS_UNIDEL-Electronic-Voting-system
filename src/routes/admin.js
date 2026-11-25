@@ -39,6 +39,8 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Serialize administrator-role and super-admin protection changes.
+    await client.query('SELECT pg_advisory_xact_lock(73192, 1)');
     const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
     const user = await client.query(
       "SELECT id FROM users WHERE id = $1 AND account_status = 'active' FOR UPDATE",
@@ -78,6 +80,8 @@ router.delete('/administrators/:userId/roles', requireAdmin(['super_admin']), as
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Serialize administrator-role and super-admin protection changes.
+    await client.query('SELECT pg_advisory_xact_lock(73192, 1)');
     const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
     const existingRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1 FOR UPDATE",[req.params.userId]);
     if (existingRole.rowCount && existingRole.rows[0].role==='super_admin' && superAdmins.rowCount<=1) {
@@ -141,6 +145,8 @@ router.post('/users/:userId/moderation', requireAdmin(['super_admin','moderator'
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Serialize administrator-role and super-admin protection changes.
+    await client.query('SELECT pg_advisory_xact_lock(73192, 1)');
     const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
     const target = await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.params.userId]);
     if (!target.rowCount) {
