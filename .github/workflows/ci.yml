@@ -9,6 +9,25 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fss_voting_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d fss_voting_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fss_voting_test
+      SESSION_SECRET: ci-test-session-secret-at-least-32-characters
+      OTP_PEPPER: ci-test-otp-pepper-at-least-32-characters-long
+      NODE_ENV: test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,4 +35,5 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run check
+      - run: npm run db:migrate
       - run: npm test
