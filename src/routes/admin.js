@@ -324,13 +324,20 @@ router.post('/elections/:id/open-nominations', requireAdmin(['super_admin','elec
 router.put('/nomination-payment-settings', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
   const p=paymentSettingsSchema.safeParse(req.body);
   if(!p.success)return res.status(400).json({error:'Provide valid payment account details.'});
+  const client=await pool.connect();
   try{
-    await pool.query(`INSERT INTO nomination_payment_settings(id,bank_name,account_name,account_number,payment_instructions,updated_by)
+    await client.query('BEGIN');
+    await client.query(`INSERT INTO nomination_payment_settings(id,bank_name,account_name,account_number,payment_instructions,updated_by)
       VALUES(1,$1,$2,$3,$4,$5) ON CONFLICT(id) DO UPDATE SET bank_name=EXCLUDED.bank_name,account_name=EXCLUDED.account_name,
       account_number=EXCLUDED.account_number,payment_instructions=EXCLUDED.payment_instructions,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
       [p.data.bankName,p.data.accountName,p.data.accountNumber,p.data.instructions,req.session.userId]);
+    await client.query(`INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
+      VALUES($1,'nomination_payment_settings.updated','settings','nomination_payment_settings',$2::jsonb)`,
+      [req.session.userId,JSON.stringify({bankName:p.data.bankName,accountName:p.data.accountName,accountNumberLast4:p.data.accountNumber.slice(-4)})]);
+    await client.query('COMMIT');
     res.json({message:'Nomination payment instructions updated.'});
-  }catch(e){next(e);}
+  }catch(e){await client.query('ROLLBACK');next(e);}
+  finally{client.release();}
 });
 router.get('/nomination-payment-settings', requireAdmin(['super_admin','finance_admin']), async(req,res,next)=>{
   try{const r=await pool.query("SELECT bank_name,account_name,account_number,payment_instructions,updated_at FROM nomination_payment_settings WHERE id=1");res.json({settings:r.rows[0]||null});}
