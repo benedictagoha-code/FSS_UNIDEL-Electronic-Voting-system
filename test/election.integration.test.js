@@ -326,6 +326,44 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     assert.equal(nominationPaymentCount.rows[0].count,1,
       'duplicate payment reference must not create a second payment record');
 
+    const withdrawableNomination = await reusedPaymentReference('/api/nominations/',{
+      method:'POST',body:{
+        electionId,officeId,manifesto:'A nomination that will be withdrawn.',
+        paymentChannel:'Zenith Bank',transactionReference:'MOCK-PAYMENT-REF-WITHDRAW-002'
+      }
+    });
+    assert.equal(withdrawableNomination.status,201,'second candidate should be able to submit a separate nomination');
+    const withdrawalId = withdrawableNomination.body.nomination.id;
+    const missingWithdrawalReason = await reusedPaymentReference(`/api/nominations/${withdrawalId}/withdraw`,{
+      method:'POST',body:{reason:'short'}
+    });
+    assert.equal(missingWithdrawalReason.status,400,'withdrawal must require a meaningful reason');
+    const withdrawal = await reusedPaymentReference(`/api/nominations/${withdrawalId}/withdraw`,{
+      method:'POST',body:{reason:'Candidate has decided not to contest this office.'}
+    });
+    assert.equal(withdrawal.status,200,'candidate should be able to withdraw while nominations are open');
+    assert.equal(withdrawal.body.nomination.eligibilityStatus,'withdrawn');
+    const retainedWithdrawal = await pool.query(
+      `SELECT n.eligibility_status,p.id AS payment_id,al.action,al.metadata
+       FROM nominations n JOIN nomination_payments p ON p.nomination_id=n.id
+       JOIN audit_logs al ON al.entity_id=n.id AND al.action='nomination.withdrawn'
+       WHERE n.id=$1 ORDER BY al.created_at DESC LIMIT 1`,
+      [withdrawalId]
+    );
+    assert.equal(retainedWithdrawal.rows[0].eligibility_status,'withdrawn',
+      'withdrawal must be recorded as a status transition, not deletion');
+    assert.ok(retainedWithdrawal.rows[0].payment_id,
+      'withdrawal must preserve the associated payment record');
+    assert.equal(retainedWithdrawal.rows[0].action,'nomination.withdrawn',
+      'candidate withdrawal must create an audit event');
+    assert.equal(retainedWithdrawal.rows[0].metadata.reason,
+      'Candidate has decided not to contest this office.',
+      'withdrawal reason must be retained in the audit event');
+    const repeatWithdrawal = await reusedPaymentReference(`/api/nominations/${withdrawalId}/withdraw`,{
+      method:'POST',body:{reason:'Trying to withdraw a second time.'}
+    });
+    assert.equal(repeatWithdrawal.status,409,'a withdrawn nomination must not be transitioned again');
+
     const simultaneousPaymentDecisions = await Promise.all([
       admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
         method:'POST',body:{decision:'verified',reason:'Mock payment verified for integration test.'}
