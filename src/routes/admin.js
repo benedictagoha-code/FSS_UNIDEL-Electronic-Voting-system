@@ -499,15 +499,14 @@ router.put('/elections/:id/voters/:userId/eligibility', requireAdmin(['super_adm
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const election = await client.query('SELECT id,status,voting_opens_at,(voting_opens_at IS NULL OR voting_opens_at<=NOW()) AS voting_started FROM elections WHERE id=$1 FOR UPDATE',[req.params.id]);
+    const election = await client.query('SELECT id,status FROM elections WHERE id=$1 FOR UPDATE',[req.params.id]);
     if (!election.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({error:'Election not found.'});
     }
-    if (['closed','results_published','cancelled'].includes(election.rows[0].status) ||
-        (election.rows[0].status === 'voting_open' && election.rows[0].voting_started)) {
+    if (['voting_open','closed','results_published','cancelled'].includes(election.rows[0].status)) {
       await client.query('ROLLBACK');
-      return res.status(409).json({error:'Voter eligibility is locked once the scheduled voting start time is reached.'});
+      return res.status(409).json({error:'Voter eligibility is locked once the voting schedule has been activated.'});
     }
     const student = await client.query(
       'SELECT u.id FROM users u JOIN student_profiles sp ON sp.user_id=u.id WHERE u.id=$1 FOR UPDATE OF u',
