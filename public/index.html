@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123b5d">
+  <title>FSS@UNIDEL | Electronic Voting System</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="FSS UNIDEL home">
+      <span class="brand-mark">FSS</span>
+      <span><strong>FSS@UNIDEL</strong><small>Electronic Voting System</small></span>
+    </a>
+    <span class="institution">University of Delta, Agbor</span>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <p class="eyebrow">FACULTY OF THE SOCIAL SCIENCES</p>
+      <h1>Your voice.<br><span>Your faculty. Your choice.</span></h1>
+      <p class="hero-copy">A secure platform for student registration, nominations and faculty elections.</p>
+      <div class="trust-note"><span class="dot"></span> Secure student access · Private credentials · Accountable elections</div>
+    </section>
+
+    <section class="workspace">
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <section id="authView" class="auth-layout">
+        <div class="auth-intro">
+          <h2>Welcome</h2>
+          <p>Sign in to access your student election portal, or create an account if you are new.</p>
+          <ul class="benefits">
+            <li>Register with your student details</li>
+            <li>Submit nominations when elections open</li>
+            <li>Participate in authorised faculty elections</li>
+          </ul>
+        </div>
+
+        <div class="panel">
+          <div class="tabs" role="tablist" aria-label="Account options">
+            <button class="tab active" type="button" data-tab="login">Sign in</button>
+            <button class="tab" type="button" data-tab="register">Register</button>
+            <button class="tab" type="button" data-tab="reset">Forgot password?</button>
+          </div>
+
+          <form id="loginForm" class="form-view">
+            <h2>Student sign in</h2>
+            <label>Matriculation / registration number
+              <input name="matricNumber" autocomplete="username" required maxlength="40" placeholder="Enter your student number">
+            </label>
+            <label>Password
+              <input name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button class="primary" type="submit">Sign in securely</button>
+          </form>
+
+          <form id="registerForm" class="form-view" hidden>
+            <h2>Create your student account</h2>
+            <p class="hint">No registration OTP is required. Use a phone number you control; password-reset codes will be sent to this number.</p>
+            <div class="two-col">
+              <label>Full name
+                <input name="fullName" required minlength="3" maxlength="180" autocomplete="name">
+              </label>
+              <label>Sex
+                <select name="sex" required><option value="">Select</option><option>Female</option><option>Male</option></select>
+              </label>
+            </div>
+            <div class="two-col">
+              <label>Department
+                <select name="department" required>
+                  <option value="">Select department</option>
+                  <option>Psychology</option><option>Sociology</option><option>Criminology &amp; Security Studies</option>
+                  <option>Political Science</option><option>International Relations</option>
+                  <option>Mass Communication</option><option>Library and Information Science</option><option>Economics</option>
+                </select>
+              </label>
+              <label>Level
+                <select name="level" id="level" required>
+                  <option value="">Select level</option><option>100</option><option>200</option><option>300</option><option>400</option><option>500</option><option>600</option>
+                </select>
+              </label>
+            </div>
+            <label id="studentNumberLabel">Matriculation number
+              <input name="matricNumber" required minlength="4" maxlength="40" placeholder="Enter your student number">
+            </label>
+            <label>Phone number (international format)
+              <input name="phoneNumber" type="tel" required placeholder="+2348012345678" pattern="\+[1-9][0-9]{7,14}" autocomplete="tel">
+            </label>
+            <div class="two-col">
+              <label>Create password
+                <input name="password" type="password" required minlength="10" maxlength="128" autocomplete="new-password">
+              </label>
+              <label>Confirm password
+                <input name="confirmPassword" type="password" required minlength="10" maxlength="128" autocomplete="new-password">
+              </label>
+            </div>
+            <p class="hint">Use at least 10 characters. Keep your password private.</p>
+            <button class="primary" type="submit">Create account</button>
+          </form>
+
+          <form id="resetRequestForm" class="form-view" hidden>
+            <h2>Reset your password</h2>
+            <p class="hint">Enter your student number. If the account is eligible, a one-time code will be sent to the phone number already registered to it.</p>
+            <label>Matriculation / registration number
+              <input name="matricNumber" required maxlength="40">
+            </label>
+            <button class="primary" type="submit">Send reset code</button>
+            <button class="text-button" type="button" id="showResetComplete">I have received a code</button>
+          </form>
+
+          <form id="resetCompleteForm" class="form-view" hidden>
+            <h2>Enter your reset code</h2>
+            <label>Matriculation / registration number
+              <input name="matricNumber" required maxlength="40">
+            </label>
+            <label>Six-digit SMS code
+              <input name="otp" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" required>
+            </label>
+            <label>New password
+              <input name="newPassword" type="password" minlength="10" maxlength="128" autocomplete="new-password" required>
+            </label>
+            <button class="primary" type="submit">Set new password</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="dashboardView" hidden>
+        <div class="dashboard-head">
+          <div><p class="eyebrow">STUDENT PORTAL</p><h2 id="welcomeName">Welcome</h2><p class="muted">Your account overview</p></div>
+          <button id="logoutButton" class="secondary" type="button">Sign out</button>
+        </div>
+        <div class="dashboard-grid">
+          <article class="info-card"><span class="card-label">Student number</span><strong id="studentNumber">—</strong></article>
+          <article class="info-card"><span class="card-label">Department</span><strong id="studentDepartment">—</strong></article>
+          <article class="info-card"><span class="card-label">Level</span><strong id="studentLevel">—</strong></article>
+        </div>
+        <div class="panel announcement">
+          <h3>Election centre</h3>
+          <p>Election notices, approved candidate lists, nomination forms and voting access will appear here when the relevant election is configured and opened by the Faculty election administrators.</p>
+          <span class="status-pill">Election services are being prepared</span>
+        </div>
+        <section id="adminPanel" class="panel admin-panel" hidden>
+          <div class="dashboard-head"><div><p class="eyebrow">RESTRICTED ACCESS</p><h3>Administrator tools</h3></div><span class="status-pill">Authorised administrator</span></div>
+          <form id="userSearchForm" class="search-row">
+            <input name="search" placeholder="Search name, student number, department or level">
+            <select name="status"><option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option><option value="deactivated">Deactivated</option></select>
+            <button class="secondary" type="submit">Search</button>
+          </form>
+          <div id="userResults" class="user-results"><p class="muted">Search for a student account to manage it.</p></div>
+        </section>
+      </section>
+    </section>
+  </main>
+  <footer><span>Faculty of the Social Sciences · University of Delta, Agbor</span><span>R.A.I.S.E UNIDEL through S.O.C.I.A.L</span></footer>
+</body>
+</html>
