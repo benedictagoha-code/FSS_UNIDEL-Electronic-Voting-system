@@ -362,12 +362,32 @@ async function loadAdminElections(){
  try{
   const r=await api('/api/admin/elections');box.replaceChildren();
   if(!r.elections.length){box.textContent='No elections created yet.';return;}
-  r.elections.forEach(e=>{const p=document.createElement('p');p.textContent=e.title+' · '+e.status+' · ID: '+e.id;box.append(p);});
+  r.elections.forEach(e=>{
+   const card=document.createElement('div');card.className='admin-election-item';
+   const heading=document.createElement('p');
+   heading.textContent=e.title+' · '+e.status+' · ID: '+e.id;card.append(heading);
+   (e.offices||[]).forEach(o=>{
+    const line=document.createElement('p');line.className='admin-office-status';
+    const detail=document.createElement('span');
+    detail.textContent=o.title+' — '+o.approvedCount+' approved candidate(s)';
+    line.append(detail);
+    if(o.unopposed){
+     const flag=document.createElement('strong');flag.className='unopposed-flag';
+     flag.textContent='UNOPPOSED!';flag.setAttribute('aria-label','Unopposed: only one approved candidate at close of nominations');
+     line.append(flag);
+    }else if(o.pendingCount>0){
+     const pending=document.createElement('span');pending.className='pending-nomination-flag';
+     pending.textContent='Pending nomination review: '+o.pendingCount;line.append(pending);
+    }
+    card.append(line);
+   });
+   box.append(card);
+  });
  }catch(error){box.textContent=error.message;}
 }
 $('#closeNominationsForm')?.addEventListener('submit',async e=>{
  e.preventDefault();const d=formData(e.currentTarget);
- try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-nominations',{method:'POST',body:'{}'});showNotice('Nominations closed.');e.currentTarget.reset();await loadAdminElections();}
+ try{const result=await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-nominations',{method:'POST',body:'{}'});const unopposed=(result.offices||[]).filter(o=>o.unopposed).map(o=>o.title);showNotice(unopposed.length?'Nominations closed. UNOPPOSED: '+unopposed.join(', '):'Nominations closed. No office met the unopposed condition.');e.currentTarget.reset();await loadAdminElections();}
  catch(error){showNotice(error.message,'error');}
 });
 $('#openVotingForm')?.addEventListener('submit',async e=>{
