@@ -378,21 +378,31 @@ router.post('/elections/:id/open-voting', requireAdmin(['super_admin','election_
     if(!election.rowCount||election.rows[0].status!=='nominations_closed'){
       await client.query('ROLLBACK');return res.status(409).json({error:'Close nominations before opening voting.'});
     }
+    const closeTime=await client.query('SELECT $1::timestamptz>NOW() AS is_future',[p.data.closesAt]);
+    if(!closeTime.rows[0].is_future){
+      await client.query('ROLLBACK');
+      return res.status(400).json({error:'The scheduled voting close time must be in the future.'});
+    }
     const check=await client.query(
       `SELECT o.title FROM election_offices o
        WHERE o.election_id=$1 AND NOT EXISTS(
         SELECT 1 FROM nominations n WHERE n.election_id=o.election_id AND n.office_id=o.id AND n.eligibility_status='approved'
        ) LIMIT 1`,[req.params.id]);
     if(check.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Every office must have at least one approved candidate. Missing: '+check.rows[0].title});}
-    await client.query(
+    const snapshot=await client.query(
       `INSERT INTO election_voter_snapshots(election_id,voter_user_id)
        SELECT $1,u.id FROM users u
        JOIN student_profiles sp ON sp.user_id=u.id
        LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
        WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
-       ON CONFLICT(election_id,voter_user_id) DO NOTHING`,
+       ON CONFLICT(election_id,voter_user_id) DO NOTHING
+       RETURNING voter_user_id`,
       [req.params.id]
     );
+    if(!snapshot.rowCount){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Voting cannot be scheduled because there are no active eligible student voters.'});
+    }
     await client.query("UPDATE elections SET status='voting_open',voting_opens_at=$1,voting_closes_at=$2 WHERE id=$3",
       [p.data.opensAt,p.data.closesAt,req.params.id]);
     await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.voting_opened','election',$2)",[req.session.userId,req.params.id]);
