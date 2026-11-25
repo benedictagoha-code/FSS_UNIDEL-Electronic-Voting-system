@@ -10,6 +10,16 @@
 - Changing a registered phone number requires an administrator-controlled recovery procedure.
 - Because no official student register is required, administrators must be able to review and suspend questionable registrations before voting opens. A matriculation number alone does not cryptographically prove identity.
 
+## Administrative role separation
+
+- Super administrators manage administrator roles, review the full audit register, configure elections and payment settings, moderate accounts, and authorise results publication.
+- Election administrators manage election setup, nominations, voter eligibility and election operations; they do not receive finance configuration or full audit-register access.
+- Finance administrators manage nomination payment instructions and payment verification; they cannot create or operate elections or read the super-administrator audit register.
+- Moderators manage ordinary student-account moderation; they cannot grant administrator roles or moderate another administrator account.
+- Results officers can view election summaries and aggregate participation and publish closed-election results; they cannot manage administrator roles, payments or voter eligibility.
+- Every privileged route checks the caller's current active account and role on the server. Hiding a button in the interface is not an authorisation control.
+- Administrator accounts are student accounts in this platform. An administrator with an active student profile retains the same eligibility and voting rights as any other eligible student.
+
 ## Account moderation
 - Mute: disables discussion/posting features only; does not disable login or voting.
 - Suspend: blocks account access for a defined period and therefore prevents voting while active.
