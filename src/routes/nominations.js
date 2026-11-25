@@ -44,7 +44,9 @@ router.get('/open', candidate, async (_req, res, next) => {
 router.get('/mine', candidate, async (req, res, next) => {
   try {
     const result = await pool.query(
-      `SELECT n.id, n.reference, n.submitted_at, n.eligibility_status, e.title AS election_title,
+      `SELECT n.id, n.reference, n.submitted_at, n.eligibility_status,
+              e.title AS election_title,e.status AS election_status,
+              e.nomination_opens_at,e.nomination_closes_at,
               o.title AS office_title, p.amount_kobo, p.payment_channel, p.transaction_reference,
               p.verification_status
        FROM nominations n JOIN elections e ON e.id=n.election_id
