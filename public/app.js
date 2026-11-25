@@ -97,12 +97,15 @@ async function loadDashboard() {
     $('#adminPanel').hidden = false;
     const roles = admin.roles || [];
     $('#electionAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
+    $('#resultsAdminTools').hidden = !roles.some(r => ['super_admin','results_officer'].includes(r));
     $('#nominationAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
     $('#financeAdminTools').hidden = !roles.some(r => ['super_admin','finance_admin'].includes(r));
     if (!$('#financeAdminTools').hidden) { await loadPaymentSettings(); await loadPayments(); }
+    if (!$('#electionAdminTools').hidden) await loadAdminElections();
     if (!$('#nominationAdminTools').hidden) await loadEligibilityQueue();
   } catch { $('#adminPanel').hidden = true; }
   await loadNominationCentre();
+  await loadVotingCentre();
 }
 $('#logoutButton').addEventListener('click', async () => {
   try { await api('/api/auth/logout', { method: 'POST', body: '{}' }); }
@@ -270,3 +273,115 @@ async function loadEligibilityQueue(){
  }catch(err){box.textContent=err.message;}
 }
 $('#refreshEligibility')?.addEventListener('click',loadEligibilityQueue);
+
+async function loadVotingCentre(){
+ const box=$('#votingElections'),resultsBox=$('#publishedResults');
+ if(!box)return;
+ try{
+  const [open,published]=await Promise.all([api('/api/voting/open'),api('/api/voting/published')]);
+  box.replaceChildren();
+  if(!open.elections.length){const p=document.createElement('p');p.className='muted';p.textContent='There are no elections currently open for voting.';box.append(p);}
+  open.elections.forEach(election=>{
+   const row=document.createElement('div');row.className='nomination-row';
+   const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small');
+   title.textContent=election.title;meta.textContent=election.has_voted?'Your participation has already been recorded.':'Voting closes '+new Date(election.voting_closes_at).toLocaleString();info.append(title,meta);row.append(info);
+   if(!election.has_voted){const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='Open ballot';button.addEventListener('click',()=>openBallot(election.id));row.append(button);}
+   box.append(row);
+  });
+  resultsBox.replaceChildren();
+  if(!published.elections.length){const p=document.createElement('p');p.className='muted';p.textContent='No election results have been published.';resultsBox.append(p);}
+  published.elections.forEach(e=>{
+   const row=document.createElement('div');row.className='nomination-row';
+   const title=document.createElement('strong');title.textContent=e.title;
+   const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent='View results';button.addEventListener('click',()=>showElectionResults(e.id));
+   row.append(title,button);resultsBox.append(row);
+  });
+ }catch(error){box.textContent=error.message;}
+}
+async function openBallot(electionId){
+ const container=$('#ballotContainer');container.hidden=false;container.textContent='Preparing your ballot…';
+ try{
+  const data=await api('/api/voting/'+encodeURIComponent(electionId)+'/ballot');
+  const auth=await api('/api/voting/'+encodeURIComponent(electionId)+'/authorise',{method:'POST',body:'{}'});
+  container.replaceChildren();
+  const heading=document.createElement('h3');heading.textContent=data.election.title+' — Official ballot';
+  const note=document.createElement('p');note.className='muted';note.textContent='Select up to the number of seats shown for each office. You may leave an office blank. Your selections cannot be changed after submission.';
+  const form=document.createElement('form');form.className='ballot-form';
+  data.offices.forEach(office=>{
+   const section=document.createElement('fieldset');section.className='ballot-office';
+   const legend=document.createElement('legend');legend.textContent=office.title+' (up to '+office.seats+')';section.append(legend);
+   if(!office.candidates.length){const p=document.createElement('p');p.textContent='No approved candidates are listed for this office.';section.append(p);}
+   office.candidates.forEach(candidate=>{
+    const label=document.createElement('label'),input=document.createElement('input');
+    input.type=Number(office.seats)===1?'radio':'checkbox';input.name='office-'+office.id;input.value=candidate.nominationId;
+    if(input.type==='checkbox')input.addEventListener('change',()=>{const chosen=section.querySelectorAll('input:checked');if(chosen.length>Number(office.seats)){input.checked=false;showNotice('You may select no more than '+office.seats+' candidates for '+office.title+'.','error');}});
+    const text=document.createElement('span');text.textContent=candidate.name+' — '+candidate.department;
+    label.append(input,text);
+    if(candidate.manifesto){const details=document.createElement('small');details.textContent=candidate.manifesto;label.append(details);}
+    section.append(label);
+   });
+   form.append(section);
+  });
+  const submit=document.createElement('button');submit.type='submit';submit.className='primary';submit.textContent='Submit my ballot';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='secondary';cancel.textContent='Cancel';cancel.addEventListener('click',()=>{container.hidden=true;container.replaceChildren();});
+  form.append(submit,cancel);
+  form.addEventListener('submit',async event=>{
+   event.preventDefault();
+   if(!window.confirm('Submit your ballot now? Your selections cannot be changed.'))return;
+   submit.disabled=true;submit.textContent='Submitting ballot…';
+   const selections=data.offices.map(office=>({officeId:office.id,nominationIds:[...form.querySelectorAll('[name="office-'+office.id+'"]:checked')].map(x=>x.value)}));
+   try{
+    const result=await api('/api/voting/'+encodeURIComponent(electionId)+'/ballot',{method:'POST',body:JSON.stringify({authorisationToken:auth.authorisationToken,selections})});
+    container.replaceChildren();container.hidden=true;showNotice(result.message);await loadVotingCentre();
+   }catch(error){showNotice(error.message,'error');submit.disabled=false;submit.textContent='Submit my ballot';}
+  });
+  container.append(heading,note,form);container.scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(error){container.textContent=error.message;showNotice(error.message,'error');}
+}
+async function showElectionResults(electionId){
+ const box=$('#resultsDetail');box.hidden=false;box.textContent='Loading results…';
+ try{
+  const data=await api('/api/voting/'+encodeURIComponent(electionId)+'/results');
+  box.replaceChildren();const heading=document.createElement('h3');heading.textContent=data.election.title+' — Published results';
+  const participation=document.createElement('p');participation.className='muted';participation.textContent='Total participating voters: '+data.totalVoters;
+  box.append(heading,participation);
+  const grouped=new Map();
+  data.results.forEach(r=>{if(!grouped.has(r.office_title))grouped.set(r.office_title,[]);if(r.nomination_id)grouped.get(r.office_title).push(r);});
+  for(const [office,candidates] of grouped){
+   const section=document.createElement('section');section.className='result-office';const title=document.createElement('strong');title.textContent=office;section.append(title);
+   candidates.forEach(c=>{const p=document.createElement('p');p.textContent=c.full_name+' ('+c.department+'): '+c.votes+' vote(s)';section.append(p);});
+   box.append(section);
+  }
+  box.scrollIntoView({behavior:'smooth',block:'start'});
+ }catch(error){box.textContent=error.message;}
+}
+$('#refreshVoting')?.addEventListener('click',loadVotingCentre);
+
+async function loadAdminElections(){
+ const box=$('#adminElectionList');if(!box)return;
+ try{
+  const r=await api('/api/admin/elections');box.replaceChildren();
+  if(!r.elections.length){box.textContent='No elections created yet.';return;}
+  r.elections.forEach(e=>{const p=document.createElement('p');p.textContent=e.title+' · '+e.status+' · ID: '+e.id;box.append(p);});
+ }catch(error){box.textContent=error.message;}
+}
+$('#closeNominationsForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-nominations',{method:'POST',body:'{}'});showNotice('Nominations closed.');e.currentTarget.reset();await loadAdminElections();}
+ catch(error){showNotice(error.message,'error');}
+});
+$('#openVotingForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/open-voting',{method:'POST',body:JSON.stringify({opensAt:new Date(d.opensAt).toISOString(),closesAt:new Date(d.closesAt).toISOString()})});showNotice('Voting schedule saved and voting opened.');e.currentTarget.reset();await loadAdminElections();await loadVotingCentre();}
+ catch(error){showNotice(error.message,'error');}
+});
+$('#closeVotingForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-voting',{method:'POST',body:'{}'});showNotice('Voting closed.');e.currentTarget.reset();await loadAdminElections();}
+ catch(error){showNotice(error.message,'error');}
+});
+$('#publishResultsForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/publish-results',{method:'POST',body:'{}'});showNotice('Results published.');e.currentTarget.reset();await loadAdminElections();await loadVotingCentre();}
+ catch(error){showNotice(error.message,'error');}
+});
