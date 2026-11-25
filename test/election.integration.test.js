@@ -215,6 +215,21 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const duplicateAuth = await candidate(`/api/voting/${electionId}/authorise`,{method:'POST',body:{}});
     assert.equal(duplicateAuth.status,409,'a voter must not receive a second ballot authorisation');
 
+    // An administrator who is also a registered, eligible student retains
+    // the same voting rights as any other eligible student.
+    const adminBallot = await admin(`/api/voting/${electionId}/ballot`);
+    assert.equal(adminBallot.status,200,'administrator with an active student profile should be allowed to vote');
+    const adminCandidateId = adminBallot.body.offices[0].candidates[0].nominationId;
+    const adminAuthorisation = await admin(`/api/voting/${electionId}/authorise`,{method:'POST',body:{}});
+    assert.equal(adminAuthorisation.status,200,'eligible student-administrator should receive voting authorisation');
+    const adminCast = await admin(`/api/voting/${electionId}/ballot`,{
+      method:'POST',body:{
+        authorisationToken:adminAuthorisation.body.authorisationToken,
+        selections:[{officeId,nominationIds:[adminCandidateId]}]
+      }
+    });
+    assert.equal(adminCast.status,201,'student-administrator ballot should be accepted');
+
     const participation = await admin(`/api/admin/elections/${electionId}/participation`);
     assert.equal(participation.status,200,'admin should view aggregate turnout');
     assert.ok(participation.body.participatingVoters>=1);
@@ -230,8 +245,8 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
 
     const results = await candidate(`/api/voting/${electionId}/results`);
     assert.equal(results.status,200,'published results should become visible');
-    assert.equal(results.body.totalVoters,1,'results should report one accepted participation record');
-    assert.equal(results.body.results[0].votes,1,'published tally should count the accepted selection');
+    assert.equal(results.body.totalVoters,2,'results should report both the student and eligible student-administrator participation records');
+    assert.equal(results.body.results[0].votes,2,'published tally should count both accepted selections');
 
     const ballotSchema = await pool.query(
       `SELECT column_name FROM information_schema.columns
