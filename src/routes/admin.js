@@ -502,6 +502,7 @@ router.get('/elections/:id/participation', requireAdmin(['super_admin','election
       pool.query(
         `WITH eligible AS (
            SELECT u.id FROM users u
+           JOIN student_profiles sp ON sp.user_id=u.id
            LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
            WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
          )
