@@ -44,3 +44,10 @@ This document records the proposed implementation architecture for the FSS@UNIDE
 
 ## Release status
 No production database, SMS integration, payment gateway or live voting service is configured by this document.
+
+
+## Implemented voter eligibility and turnout controls
+- Active student accounts are eligible by default for each election.
+- An election administrator may record a reasoned, audited eligibility exclusion or restore eligibility for an individual student before voting opens.
+- Eligibility changes are locked once voting opens; the voting service rechecks eligibility during ballot retrieval, authorisation and ballot submission.
+- Aggregate participation reporting returns eligible and participating voter counts overall and by department. It does not expose individual participation rows or ballot choices through the dashboard.
