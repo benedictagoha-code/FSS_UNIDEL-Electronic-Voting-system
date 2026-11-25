@@ -419,7 +419,7 @@ router.get('/elections/:id/voters', requireAdmin(['super_admin','election_admin'
     if (!election.rowCount) return res.status(404).json({error:'Election not found.'});
     const voters = await pool.query(
       `SELECT u.id,u.matric_number,u.account_status,p.full_name,p.department,p.level,
-        COALESCE(ev.eligible,TRUE) AS eligible,ev.reason AS eligibility_reason,ev.updated_at AS eligibility_updated_at
+        (u.account_status='active' AND COALESCE(ev.eligible,TRUE)) AS eligible,ev.reason AS eligibility_reason,ev.updated_at AS eligibility_updated_at
        FROM users u
        JOIN student_profiles p ON p.user_id=u.id
        LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
