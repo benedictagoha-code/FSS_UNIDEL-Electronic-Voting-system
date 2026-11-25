@@ -43,7 +43,10 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
     await client.query('SELECT pg_advisory_xact_lock(73192, 1)');
     const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
     const user = await client.query(
-      "SELECT id FROM users WHERE id = $1 AND account_status = 'active' FOR UPDATE",
+      `SELECT u.id FROM users u
+       JOIN student_profiles p ON p.user_id = u.id
+       WHERE u.id = $1 AND u.account_status = 'active'
+       FOR UPDATE OF u`,
       [req.params.userId]
     );
     if (!user.rowCount) {
@@ -64,8 +67,16 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
     );
     await client.query(
       `INSERT INTO audit_logs (actor_user_id, action, entity_type, entity_id, metadata)
-       VALUES ($1, 'admin.role_granted', 'user', $2, $3::jsonb)`,
-      [req.session.userId, req.params.userId, JSON.stringify({ role: parsed.data.role })]
+       VALUES ($1, $2, 'user', $3, $4::jsonb)`,
+      [
+        req.session.userId,
+        existingRole.rowCount ? 'admin.role_changed' : 'admin.role_granted',
+        req.params.userId,
+        JSON.stringify({
+          previousRole: existingRole.rowCount ? existingRole.rows[0].role : null,
+          role: parsed.data.role
+        })
+      ]
     );
     await client.query('COMMIT');
     res.json({ message: 'Administrator role assigned.' });
