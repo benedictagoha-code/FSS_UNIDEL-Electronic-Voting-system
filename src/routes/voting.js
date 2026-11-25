@@ -30,6 +30,10 @@ router.get('/open', async (req, res, next) => {
        WHERE e.status='voting_open'
          AND (e.voting_opens_at IS NULL OR e.voting_opens_at<=NOW())
          AND (e.voting_closes_at IS NULL OR e.voting_closes_at>=NOW())
+         AND NOT EXISTS (
+           SELECT 1 FROM election_voter_eligibility ev
+           WHERE ev.election_id=e.id AND ev.voter_user_id=$1 AND ev.eligible=FALSE
+         )
        ORDER BY e.voting_opens_at ASC`,
       [req.session.userId]
     );
@@ -43,8 +47,12 @@ router.get('/:electionId/ballot', async (req, res, next) => {
       `SELECT id,title,description,voting_closes_at FROM elections
        WHERE id=$1 AND status='voting_open'
          AND (voting_opens_at IS NULL OR voting_opens_at<=NOW())
-         AND (voting_closes_at IS NULL OR voting_closes_at>=NOW())`,
-      [req.params.electionId]
+         AND (voting_closes_at IS NULL OR voting_closes_at>=NOW())
+         AND NOT EXISTS (
+           SELECT 1 FROM election_voter_eligibility ev
+           WHERE ev.election_id=elections.id AND ev.voter_user_id=$2 AND ev.eligible=FALSE
+         )`,
+      [req.params.electionId, req.session.userId]
     );
     if (!election.rowCount) return res.status(404).json({ error: 'This election is not currently accepting votes.' });
     const participation = await pool.query(
@@ -80,8 +88,14 @@ router.post('/:electionId/authorise', async (req, res, next) => {
   try {
     await client.query('BEGIN');
     const activeUser = await client.query(
-      "SELECT id FROM users WHERE id=$1 AND account_status='active' FOR UPDATE",
-      [req.session.userId]
+      `SELECT id FROM users
+       WHERE id=$1 AND account_status='active'
+         AND NOT EXISTS (
+           SELECT 1 FROM election_voter_eligibility ev
+           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
+         )
+       FOR UPDATE`,
+      [req.session.userId, req.params.electionId]
     );
     if (!activeUser.rowCount) {
       await client.query('ROLLBACK');
@@ -139,8 +153,14 @@ router.post('/:electionId/ballot', async (req, res, next) => {
   try {
     await client.query('BEGIN');
     const activeUser = await client.query(
-      "SELECT id FROM users WHERE id=$1 AND account_status='active' FOR UPDATE",
-      [req.session.userId]
+      `SELECT id FROM users
+       WHERE id=$1 AND account_status='active'
+         AND NOT EXISTS (
+           SELECT 1 FROM election_voter_eligibility ev
+           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
+         )
+       FOR UPDATE`,
+      [req.session.userId, req.params.electionId]
     );
     if (!activeUser.rowCount) {
       await client.query('ROLLBACK');
