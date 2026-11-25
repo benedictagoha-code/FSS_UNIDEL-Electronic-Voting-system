@@ -389,7 +389,7 @@ async function loadVoterEligibility(){
    info.append(name,meta);row.append(info);
    const action=document.createElement('button');action.type='button';action.className='secondary';
    action.textContent=v.eligible?'Exclude from election':'Restore eligibility';
-   action.disabled=['voting_open','closed','results_published','cancelled'].includes(r.election.status);
+   action.disabled=v.account_status!=='active'||['voting_open','closed','results_published','cancelled'].includes(r.election.status);
    action.addEventListener('click',async()=>{
     const next=!v.eligible;
     const reason=prompt('Reason for '+(next?'restoring eligibility':'excluding this student')+' (minimum 5 characters):');
