@@ -406,4 +406,72 @@ router.get('/elections', requireAdmin(['super_admin','election_admin','results_o
 
 
 
+// Election-specific voter eligibility administration.
+const voterEligibilitySchema = z.object({
+  eligible: z.boolean(),
+  reason: z.string().trim().min(5).max(1000)
+});
+
+router.get('/elections/:id/voters', requireAdmin(['super_admin','election_admin']), async (req,res,next) => {
+  const search = String(req.query.search || '').trim().slice(0,100);
+  try {
+    const election = await pool.query('SELECT id,title,status FROM elections WHERE id=$1',[req.params.id]);
+    if (!election.rowCount) return res.status(404).json({error:'Election not found.'});
+    const voters = await pool.query(
+      `SELECT u.id,u.matric_number,u.account_status,p.full_name,p.department,p.level,
+        COALESCE(ev.eligible,TRUE) AS eligible,ev.reason AS eligibility_reason,ev.updated_at AS eligibility_updated_at
+       FROM users u
+       JOIN student_profiles p ON p.user_id=u.id
+       LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
+       WHERE ($2::text='' OR u.matric_number ILIKE '%'||$2||'%' OR p.full_name ILIKE '%'||$2||'%' OR
+         p.department ILIKE '%'||$2||'%' OR p.level ILIKE '%'||$2||'%')
+       ORDER BY p.department,p.level,p.full_name LIMIT 300`,
+      [req.params.id,search]
+    );
+    res.json({election:election.rows[0],voters:voters.rows});
+  } catch(error) { next(error); }
+});
+
+router.put('/elections/:id/voters/:userId/eligibility', requireAdmin(['super_admin','election_admin']), async(req,res,next) => {
+  const parsed = voterEligibilitySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({error:'Provide an eligibility decision and a reason of at least five characters.'});
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const election = await client.query('SELECT id,status FROM elections WHERE id=$1 FOR UPDATE',[req.params.id]);
+    if (!election.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({error:'Election not found.'});
+    }
+    if (['voting_open','closed','results_published','cancelled'].includes(election.rows[0].status)) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Voter eligibility is locked once voting opens.'});
+    }
+    const student = await client.query('SELECT id FROM users WHERE id=$1 FOR UPDATE',[req.params.userId]);
+    if (!student.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({error:'Student account not found.'});
+    }
+    await client.query(
+      `INSERT INTO election_voter_eligibility(election_id,voter_user_id,eligible,reason,updated_by,updated_at)
+       VALUES($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT(election_id,voter_user_id) DO UPDATE
+       SET eligible=EXCLUDED.eligible,reason=EXCLUDED.reason,updated_by=EXCLUDED.updated_by,updated_at=NOW()`,
+      [req.params.id,req.params.userId,parsed.data.eligible,parsed.data.reason,req.session.userId]
+    );
+    await client.query(
+      `INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
+       VALUES($1,$2,'user',$3,$4::jsonb)`,
+      [req.session.userId,parsed.data.eligible?'voter.eligibility_granted':'voter.eligibility_revoked',req.params.userId,
+        JSON.stringify({electionId:req.params.id,reason:parsed.data.reason})]
+    );
+    await client.query('COMMIT');
+    res.json({message:parsed.data.eligible?'Student is eligible for this election.':'Student has been excluded from this election.'});
+  } catch(error) {
+    await client.query('ROLLBACK');
+    next(error);
+  } finally { client.release(); }
+});
+
+
 export default router;
