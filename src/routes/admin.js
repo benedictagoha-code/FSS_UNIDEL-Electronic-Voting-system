@@ -40,12 +40,6 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
   try {
     await client.query('BEGIN');
     const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
-    const existingRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1 FOR UPDATE",[req.params.userId]);
-    if (existingRole.rowCount && existingRole.rows[0].role==='super_admin' &&
-        parsed.data.role!=='super_admin' && superAdmins.rowCount<=1) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({error:'The last super administrator cannot be demoted.'});
-    }
     const user = await client.query(
       "SELECT id FROM users WHERE id = $1 AND account_status = 'active' FOR UPDATE",
       [req.params.userId]
@@ -53,6 +47,12 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
     if (!user.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Active student account not found.' });
+    }
+    const existingRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1 FOR UPDATE",[req.params.userId]);
+    if (existingRole.rowCount && existingRole.rows[0].role==='super_admin' &&
+        parsed.data.role!=='super_admin' && superAdmins.rowCount<=1) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'The last super administrator cannot be demoted.'});
     }
     await client.query(
       `INSERT INTO admin_roles (user_id, role, granted_by)
