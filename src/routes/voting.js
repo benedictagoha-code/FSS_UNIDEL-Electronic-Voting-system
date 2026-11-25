@@ -103,7 +103,7 @@ router.post('/:electionId/authorise', async (req, res, next) => {
        WHERE u.id=$1 AND u.account_status='active'
          AND NOT EXISTS (
            SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
+           WHERE ev.election_id=$2 AND ev.voter_user_id=u.id AND ev.eligible=FALSE
          )
        FOR UPDATE`,
       [req.session.userId, req.params.electionId]
@@ -180,7 +180,7 @@ router.post('/:electionId/ballot', async (req, res, next) => {
        WHERE u.id=$1 AND u.account_status='active'
          AND NOT EXISTS (
            SELECT 1 FROM election_voter_eligibility ev
-           WHERE ev.election_id=$2 AND ev.voter_user_id=users.id AND ev.eligible=FALSE
+           WHERE ev.election_id=$2 AND ev.voter_user_id=u.id AND ev.eligible=FALSE
          )
        FOR UPDATE`,
       [req.session.userId, req.params.electionId]
