@@ -100,9 +100,11 @@ async function loadDashboard() {
     $('#resultsAdminTools').hidden = !roles.some(r => ['super_admin','results_officer'].includes(r));
     $('#nominationAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
     $('#financeAdminTools').hidden = !roles.some(r => ['super_admin','finance_admin'].includes(r));
+    $('#voterEligibilityTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
     if (!$('#financeAdminTools').hidden) { await loadPaymentSettings(); await loadPayments(); }
     if (!$('#electionAdminTools').hidden || !$('#resultsAdminTools').hidden) await loadAdminElections();
     if (!$('#nominationAdminTools').hidden) await loadEligibilityQueue();
+    if (!$('#voterEligibilityTools').hidden) await loadVoterEligibilityElectionOptions();
   } catch { $('#adminPanel').hidden = true; }
   await loadNominationCentre();
   await loadVotingCentre();
@@ -356,6 +358,56 @@ async function showElectionResults(electionId){
  }catch(error){box.textContent=error.message;}
 }
 $('#refreshVoting')?.addEventListener('click',loadVotingCentre);
+
+
+async function loadVoterEligibilityElectionOptions(){
+ const select=$('#voterEligibilityElection');if(!select)return;
+ try{
+  const r=await api('/api/admin/elections');
+  const current=select.value;
+  select.replaceChildren();
+  const placeholder=document.createElement('option');placeholder.value='';placeholder.textContent='Select election';select.append(placeholder);
+  (r.elections||[]).forEach(e=>{
+   const option=document.createElement('option');option.value=e.id;option.textContent=e.title+' · '+e.status;select.append(option);
+  });
+  if(current)select.value=current;
+ }catch(error){showNotice(error.message,'error');}
+}
+async function loadVoterEligibility(){
+ const form=$('#voterElectionForm'),data=formData(form),box=$('#voterEligibilityList');
+ if(!data.electionId){box.textContent='Select an election first.';return;}
+ box.textContent='Loading voter eligibility…';
+ try{
+  const r=await api('/api/admin/elections/'+encodeURIComponent(data.electionId)+'/voters?search='+encodeURIComponent(data.search||''));
+  box.replaceChildren();
+  if(!r.voters.length){box.textContent='No student accounts matched this search.';return;}
+  r.voters.forEach(v=>{
+   const row=document.createElement('div');row.className='user-row';
+   const info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
+   name.textContent=v.full_name+' · '+v.matric_number;
+   meta.textContent=v.department+' · '+v.level+' Level · Account: '+v.account_status+' · Election eligibility: '+(v.eligible?'Eligible':'Excluded');
+   info.append(name,meta);row.append(info);
+   const action=document.createElement('button');action.type='button';action.className='secondary';
+   action.textContent=v.eligible?'Exclude from election':'Restore eligibility';
+   action.disabled=['voting_open','closed','results_published','cancelled'].includes(r.election.status);
+   action.addEventListener('click',async()=>{
+    const next=!v.eligible;
+    const reason=prompt('Reason for '+(next?'restoring eligibility':'excluding this student')+' (minimum 5 characters):');
+    if(!reason||reason.trim().length<5)return;
+    try{
+     await api('/api/admin/elections/'+encodeURIComponent(data.electionId)+'/voters/'+encodeURIComponent(v.id)+'/eligibility',{
+      method:'PUT',body:JSON.stringify({eligible:next,reason:reason.trim()})
+     });
+     showNotice(next?'Student eligibility restored for this election.':'Student excluded from this election.');
+     await loadVoterEligibility();
+    }catch(error){showNotice(error.message,'error');}
+   });
+   row.append(action);box.append(row);
+  });
+  if(r.voters.length===300){const note=document.createElement('p');note.className='muted';note.textContent='Showing up to 300 matches. Refine your search to locate a particular student.';box.append(note);}
+ }catch(error){box.textContent=error.message;}
+}
+$('#voterElectionForm')?.addEventListener('submit',async e=>{e.preventDefault();await loadVoterEligibility();});
 
 async function loadAdminElections(){
  const box=$('#adminElectionList');if(!box)return;
