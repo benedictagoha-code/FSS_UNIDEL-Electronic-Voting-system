@@ -222,6 +222,12 @@ router.post('/password-reset/complete', resetLimiter, async (req, res, next) => 
     const passwordHash = await argon2.hash(parsed.data.newPassword, { type: argon2.argon2id });
     await client.query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [passwordHash, userId]);
     await client.query('UPDATE password_reset_otps SET consumed_at = NOW() WHERE user_id = $1 AND consumed_at IS NULL', [userId]);
+    // Revoke every existing login session after a successful password reset.
+    // The current reset request is not authenticated, so the user must sign in again.
+    await client.query(
+      `DELETE FROM user_sessions WHERE sess->>'userId' = $1`,
+      [userId]
+    );
     await client.query('COMMIT');
     return res.json({ message: 'Password reset successful. You can now sign in with your new password.' });
   } catch (error) {
