@@ -384,6 +384,15 @@ router.post('/elections/:id/open-voting', requireAdmin(['super_admin','election_
         SELECT 1 FROM nominations n WHERE n.election_id=o.election_id AND n.office_id=o.id AND n.eligibility_status='approved'
        ) LIMIT 1`,[req.params.id]);
     if(check.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'Every office must have at least one approved candidate. Missing: '+check.rows[0].title});}
+    await client.query(
+      `INSERT INTO election_voter_snapshots(election_id,voter_user_id)
+       SELECT $1,u.id FROM users u
+       JOIN student_profiles sp ON sp.user_id=u.id
+       LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
+       WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
+       ON CONFLICT(election_id,voter_user_id) DO NOTHING`,
+      [req.params.id]
+    );
     await client.query("UPDATE elections SET status='voting_open',voting_opens_at=$1,voting_closes_at=$2 WHERE id=$3",
       [p.data.opensAt,p.data.closesAt,req.params.id]);
     await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.voting_opened','election',$2)",[req.session.userId,req.params.id]);
@@ -536,29 +545,20 @@ router.get('/elections/:id/participation', requireAdmin(['super_admin','election
     if (!election.rowCount) return res.status(404).json({error:'Election not found.'});
     const [totals,departments] = await Promise.all([
       pool.query(
-        `WITH eligible AS (
-           SELECT u.id FROM users u
-           JOIN student_profiles sp ON sp.user_id=u.id
-           LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
-           WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
-         )
-         SELECT COUNT(*)::int AS eligible_voters,
+        `SELECT COUNT(*)::int AS eligible_voters,
            COUNT(vp.id)::int AS participating_voters
-         FROM eligible e
-         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.id`,
+         FROM election_voter_snapshots e
+         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.voter_user_id
+         WHERE e.election_id=$1`,
         [req.params.id]
       ),
       pool.query(
-        `WITH eligible AS (
-           SELECT u.id,p.department FROM users u
-           JOIN student_profiles p ON p.user_id=u.id
-           LEFT JOIN election_voter_eligibility ev ON ev.election_id=$1 AND ev.voter_user_id=u.id
-           WHERE u.account_status='active' AND COALESCE(ev.eligible,TRUE)=TRUE
-         )
-         SELECT e.department,COUNT(*)::int AS eligible_voters,COUNT(vp.id)::int AS participating_voters
-         FROM eligible e
-         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.id
-         GROUP BY e.department ORDER BY e.department`,
+        `SELECT p.department,COUNT(*)::int AS eligible_voters,COUNT(vp.id)::int AS participating_voters
+         FROM election_voter_snapshots e
+         JOIN student_profiles p ON p.user_id=e.voter_user_id
+         LEFT JOIN voter_participation vp ON vp.election_id=$1 AND vp.voter_user_id=e.voter_user_id
+         WHERE e.election_id=$1
+         GROUP BY p.department ORDER BY p.department`,
         [req.params.id]
       )
     ]);
