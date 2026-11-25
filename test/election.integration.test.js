@@ -129,6 +129,25 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
 
     const openNominations = await admin(`/api/admin/elections/${electionId}/open-nominations`,{method:'POST',body:{}});
     assert.equal(openNominations.status,200,'admin should open nominations');
+    // Database-level lifecycle guards must reject configuration changes after nominations open.
+    await assert.rejects(
+      () => pool.query("UPDATE elections SET title='Tampered election title' WHERE id=$1",[electionId]),
+      error => error.code === '55000',
+      'election title must be immutable after nominations open'
+    );
+    await assert.rejects(
+      () => pool.query(
+        "INSERT INTO election_offices(election_id,title,nomination_fee_kobo,seats) VALUES($1,'Late Office',0,1)",
+        [electionId]
+      ),
+      error => error.code === '55000',
+      'new offices must not be added after nominations open'
+    );
+    await assert.rejects(
+      () => pool.query("UPDATE elections SET status='results_published' WHERE id=$1",[electionId]),
+      error => error.code === '55000',
+      'election status must not skip required lifecycle stages'
+    );
 
     const candidate = client();
     const candidateLogin = await candidate('/api/auth/login',{method:'POST',body:{
