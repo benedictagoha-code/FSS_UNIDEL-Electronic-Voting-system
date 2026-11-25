@@ -92,8 +92,14 @@ async function loadDashboard() {
   $('#studentNumber').textContent = currentUser.matric_number;
   $('#studentDepartment').textContent = currentUser.department;
   $('#studentLevel').textContent = currentUser.level + ' Level';
-  try { await api('/api/admin/me'); $('#adminPanel').hidden = false; }
-  catch { $('#adminPanel').hidden = true; }
+  try {
+    const admin = await api('/api/admin/me');
+    $('#adminPanel').hidden = false;
+    const roles = admin.roles || [];
+    $('#electionAdminTools').hidden = !roles.some(r => ['super_admin','election_admin'].includes(r));
+    $('#financeAdminTools').hidden = !roles.some(r => ['super_admin','finance_admin'].includes(r));
+    if (!$('#financeAdminTools').hidden) { await loadPaymentSettings(); await loadPayments(); }
+  } catch { $('#adminPanel').hidden = true; }
   await loadNominationCentre();
 }
 $('#logoutButton').addEventListener('click', async () => {
@@ -229,3 +235,49 @@ async function loadNominationCentre() {
  }catch(err){opportunities.textContent=err.message;mine.textContent='Unable to load nomination records.';}
 }
 $('#refreshNominations')?.addEventListener('click',loadNominationCentre);
+
+$('#createElectionForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const f=e.currentTarget,d=formData(f);
+ const payload={title:d.title,description:d.description};
+ if(d.nominationOpensAt)payload.nominationOpensAt=new Date(d.nominationOpensAt).toISOString();
+ if(d.nominationClosesAt)payload.nominationClosesAt=new Date(d.nominationClosesAt).toISOString();
+ try{const r=await api('/api/admin/elections',{method:'POST',body:JSON.stringify(payload)});showNotice('Draft election created. Election ID: '+r.election.id);f.reset();}
+ catch(err){showNotice(err.message,'error');}
+});
+$('#createOfficeForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{const r=await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/offices',{method:'POST',body:JSON.stringify({title:d.title,nominationFeeNaira:Number(d.nominationFeeNaira),seats:Number(d.seats)})});showNotice('Office added: '+r.office.title);e.currentTarget.reset();}
+ catch(err){showNotice(err.message,'error');}
+});
+$('#openNominationsForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/open-nominations',{method:'POST',body:'{}'});showNotice('Nominations opened for the election.');e.currentTarget.reset();await loadNominationCentre();}
+ catch(err){showNotice(err.message,'error');}
+});
+async function loadPaymentSettings(){
+ try{const r=await api('/api/admin/nomination-payment-settings');if(r.settings){const f=$('#paymentSettingsForm');f.elements.bankName.value=r.settings.bank_name;f.elements.accountName.value=r.settings.account_name;f.elements.accountNumber.value=r.settings.account_number;f.elements.instructions.value=r.settings.payment_instructions||'';}}
+ catch(err){showNotice(err.message,'error');}
+}
+$('#paymentSettingsForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const d=formData(e.currentTarget);
+ try{await api('/api/admin/nomination-payment-settings',{method:'PUT',body:JSON.stringify({bankName:d.bankName,accountName:d.accountName,accountNumber:d.accountNumber,instructions:d.instructions})});showNotice('Nomination payment account instructions saved.');}
+ catch(err){showNotice(err.message,'error');}
+});
+async function loadPayments(){
+ const box=$('#paymentQueue');box.textContent='Loading…';
+ try{
+  const r=await api('/api/admin/nomination-payments');box.replaceChildren();
+  if(!r.payments.length){box.textContent='No nomination payment records yet.';return;}
+  r.payments.forEach(p=>{
+   const row=document.createElement('div');row.className='payment-row';
+   const info=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small');
+   name.textContent=p.full_name+' · '+p.office_title;meta.textContent=p.election_title+' · '+p.reference+' · '+p.matric_number+' · ₦'+(Number(p.amount_kobo)/100).toLocaleString('en-NG',{minimumFractionDigits:2})+' · '+p.payment_channel+' · Ref: '+p.transaction_reference+' · '+p.verification_status;info.append(name,meta);row.append(info);
+   if(p.verification_status==='pending'){
+    const actions=document.createElement('div');actions.className='user-actions';
+    for(const decision of ['verified','rejected']){const b=document.createElement('button');b.type='button';b.textContent=decision==='verified'?'Verify payment':'Reject payment';b.addEventListener('click',async()=>{const reason=prompt('Reason for '+decision+' decision (minimum 5 characters):');if(!reason||reason.trim().length<5)return;try{await api('/api/admin/nomination-payments/'+encodeURIComponent(p.id)+'/decision',{method:'POST',body:JSON.stringify({decision,reason:reason.trim()})});showNotice('Payment decision recorded.');await loadPayments();}catch(err){showNotice(err.message,'error');}});actions.append(b);}
+    row.append(actions);
+   }box.append(row);
+  });
+ }catch(err){box.textContent=err.message;}
+}
+$('#refreshPayments')?.addEventListener('click',loadPayments);
