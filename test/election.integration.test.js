@@ -59,6 +59,14 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     assert.equal(crossOrigin.status, 403, 'cross-origin state changes must be rejected');
 
+    const fetchMetadataCrossOrigin = await fetch(base + '/api/auth/register', {
+      method: 'POST',
+      headers: { 'sec-fetch-site': 'cross-site', 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    assert.equal(fetchMetadataCrossOrigin.status, 403,
+      'cross-site browser requests must be rejected even when Origin is absent');
+
     const sameOrigin = await fetch(base + '/api/auth/register', {
       method: 'POST',
       headers: { origin: base, 'content-type': 'application/json' },
