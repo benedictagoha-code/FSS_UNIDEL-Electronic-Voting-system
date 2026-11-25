@@ -241,8 +241,8 @@ router.post('/:electionId/ballot', async (req, res, next) => {
     await client.query('UPDATE voting_authorisations SET consumed_at=NOW() WHERE id=$1',[auth.rows[0].id]);
     await client.query(
       `INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata)
-       VALUES($1,'voting.ballot_cast','election',$2,'{}'::jsonb)`,
-      [req.session.userId,req.params.electionId]
+       VALUES(NULL,'voting.ballot_cast','election',$1,'{}'::jsonb)`,
+      [req.params.electionId]
     );
     await client.query('COMMIT');
     res.status(201).json({ message: 'Your ballot has been accepted. Your voting participation has been recorded separately from your ballot choices.' });
