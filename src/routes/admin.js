@@ -39,6 +39,13 @@ router.post('/administrators/:userId/roles', requireAdmin(['super_admin']), asyn
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
+    const existingRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1 FOR UPDATE",[req.params.userId]);
+    if (existingRole.rowCount && existingRole.rows[0].role==='super_admin' &&
+        parsed.data.role!=='super_admin' && superAdmins.rowCount<=1) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'The last super administrator cannot be demoted.'});
+    }
     const user = await client.query(
       "SELECT id FROM users WHERE id = $1 AND account_status = 'active' FOR UPDATE",
       [req.params.userId]
@@ -71,6 +78,12 @@ router.delete('/administrators/:userId/roles', requireAdmin(['super_admin']), as
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
+    const existingRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1 FOR UPDATE",[req.params.userId]);
+    if (existingRole.rowCount && existingRole.rows[0].role==='super_admin' && superAdmins.rowCount<=1) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'The last super administrator cannot be removed.'});
+    }
     const removed = await client.query('DELETE FROM admin_roles WHERE user_id = $1 RETURNING role', [req.params.userId]);
     if (!removed.rowCount) {
       await client.query('ROLLBACK');
@@ -128,10 +141,17 @@ router.post('/users/:userId/moderation', requireAdmin(['super_admin','moderator'
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const superAdmins = await client.query("SELECT user_id FROM admin_roles WHERE role='super_admin' FOR UPDATE");
     const target = await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.params.userId]);
     if (!target.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Student account not found.' });
+    }
+    const targetRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1",[req.params.userId]);
+    if (['suspend','deactivate'].includes(parsed.data.action) &&
+        targetRole.rowCount && targetRole.rows[0].role==='super_admin' && superAdmins.rowCount<=1) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'The last super administrator cannot be suspended or deactivated.'});
     }
 
     const { action, reason, durationHours } = parsed.data;
