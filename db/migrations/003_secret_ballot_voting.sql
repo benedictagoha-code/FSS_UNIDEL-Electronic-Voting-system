@@ -4,6 +4,13 @@ ALTER TABLE elections ADD CONSTRAINT elections_status_check
 
 ALTER TABLE ballots DROP COLUMN IF EXISTS cast_at;
 ALTER TABLE ballot_selections DROP CONSTRAINT IF EXISTS ballot_selections_ballot_id_office_id_key;
+-- Remove a previously-created version of this constraint/index before rebuilding it.
+-- This keeps the migration safe if an earlier deployment created the index outside
+-- the schema_migrations ledger.
+ALTER TABLE ballot_selections
+  DROP CONSTRAINT IF EXISTS ballot_selections_ballot_office_candidate_key;
+DROP INDEX IF EXISTS ballot_selections_ballot_office_candidate_key;
+
 ALTER TABLE ballot_selections
   ADD CONSTRAINT ballot_selections_ballot_office_candidate_key
   UNIQUE (ballot_id, office_id, candidate_nomination_id);
