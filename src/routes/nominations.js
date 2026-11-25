@@ -19,6 +19,13 @@ const candidate = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+router.get('/payment-instructions', candidate, async (_req,res,next)=>{
+  try{
+    const r=await pool.query("SELECT bank_name,account_name,account_number,payment_instructions FROM nomination_payment_settings WHERE id=1");
+    res.json({paymentInstructions:r.rows[0]||null});
+  }catch(error){next(error);}
+});
+
 router.get('/open', candidate, async (_req, res, next) => {
   try {
     const result = await pool.query(
