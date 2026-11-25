@@ -10,6 +10,8 @@ const router = Router();
 const phonePattern = /^\+[1-9]\d{7,14}$/;
 const matricPattern = /^[A-Z0-9/-]{4,40}$/;
 const passwordSchema = z.string().min(10).max(128);
+// Match the Argon2 work factor for unknown matriculation numbers to reduce timing-based account discovery.
+const dummyPasswordHash = argon2.hash(crypto.randomBytes(32).toString('hex'), { type: argon2.argon2id });
 
 const registerSchema = z.object({
   fullName: z.string().trim().min(3).max(180),
@@ -98,8 +100,9 @@ router.post('/login', authLimiter, async (req, res, next) => {
       [parsed.data.matricNumber]
     );
     const user = result.rows[0];
-    const valid = user && await argon2.verify(user.password_hash, parsed.data.password);
-    if (!valid || user.account_status !== 'active') return res.status(401).json({ error: 'Invalid credentials or account unavailable.' });
+    const hashToVerify = user?.password_hash || await dummyPasswordHash;
+    const valid = await argon2.verify(hashToVerify, parsed.data.password);
+    if (!user || !valid || user.account_status !== 'active') return res.status(401).json({ error: 'Invalid credentials or account unavailable.' });
     await new Promise((resolve, reject) => req.session.regenerate(error => error ? reject(error) : resolve()));
     req.session.userId = user.id;
     return res.json({ message: 'Sign-in successful.', user: { fullName: user.full_name } });
