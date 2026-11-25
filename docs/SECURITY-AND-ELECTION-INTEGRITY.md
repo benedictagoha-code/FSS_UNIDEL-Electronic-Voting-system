@@ -72,3 +72,12 @@ The implementation reduces ordinary application-level linkage. It does not claim
 - Participation reports expose only aggregate eligible and participating counts, including department totals. They do not expose ballot choices.
 - Composite database constraints bind each selection to its ballot, election, office and nomination, preventing cross-election or cross-office references.
 - Ballot and participation records currently retain timestamps. Separation of tables reduces ordinary application-level linkage but does not provide cryptographic unlinkability against privileged database or server operators.
+
+
+## Audit register and results publication
+
+- The administrative audit register is read-only and restricted to super administrators.
+- It supports bounded pagination and filtering by action and entity type; entries are ordered newest first.
+- Audit entries identify the acting administrator and retain event metadata, but the register does not query ballot selections or expose an individual's candidate choices.
+- Results publication is a separate authorised transition from `closed` to `results_published`; the transition and its audit event are committed together.
+- Ordinary student accounts cannot access the audit register. Audit access itself should be monitored and the underlying database audit records retained in protected backups.
