@@ -319,6 +319,11 @@ router.post('/elections/:id/close-nominations', requireAdmin(['super_admin','ele
       await client.query('ROLLBACK');
       return res.status(409).json({error:'Only an election with open nominations can be closed for nominations.'});
     }
+    const pending=await client.query("SELECT COUNT(*)::int AS count FROM nominations WHERE election_id=$1 AND eligibility_status='pending'",[req.params.id]);
+    if(pending.rows[0].count>0){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Review or reject all pending nominations before closing nominations. Pending nominations: '+pending.rows[0].count});
+    }
     await client.query("UPDATE elections SET status='nominations_closed' WHERE id=$1",[req.params.id]);
     const officeResult=await client.query(`SELECT o.id,o.title,
       COUNT(n.id) FILTER (WHERE n.eligibility_status='approved')::int AS approved_count,
