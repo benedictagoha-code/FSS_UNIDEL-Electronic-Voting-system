@@ -41,6 +41,7 @@ test('Termii adapter sends a transactional DND SMS using digits-only phone numbe
     assert.equal(request.body.from, 'FSS-UNIDEL');
     assert.equal(request.body.channel, 'dnd');
     assert.equal(request.body.type, 'plain');
+    assert.equal(request.options.redirect, 'error', 'the API key must not be forwarded through redirects');
     assert.match(request.body.sms, /004219/);
     assert.equal(result.messageId, 'test-message-123');
   } finally {
