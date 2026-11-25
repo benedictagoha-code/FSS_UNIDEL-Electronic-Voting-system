@@ -390,6 +390,9 @@ router.get('/elections', requireAdmin(['super_admin','election_admin','results_o
         'id',o.id,'title',o.title,
         'approvedCount',(SELECT COUNT(*)::int FROM nominations na WHERE na.office_id=o.id AND na.eligibility_status='approved'),
         'pendingCount',(SELECT COUNT(*)::int FROM nominations np WHERE np.office_id=o.id AND np.eligibility_status='pending'),
+        'approvedCandidates',COALESCE((SELECT json_agg(json_build_object('name',sp.full_name,'department',sp.department) ORDER BY sp.full_name)
+          FROM nominations nc JOIN users uc ON uc.id=nc.candidate_user_id JOIN student_profiles sp ON sp.user_id=uc.id
+          WHERE nc.office_id=o.id AND nc.eligibility_status='approved'),'[]'::json),
         'unopposed',(
           (SELECT COUNT(*) FROM nominations nu WHERE nu.office_id=o.id AND nu.eligibility_status='approved')=1
           AND (SELECT COUNT(*) FROM nominations nx WHERE nx.office_id=o.id AND nx.eligibility_status='pending')=0
