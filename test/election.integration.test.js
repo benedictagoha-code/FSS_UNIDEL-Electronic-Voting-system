@@ -106,11 +106,8 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       [financeHash]
     );
     const financeId = financeUser.rows[0].id;
-    await pool.query(
-      `INSERT INTO student_profiles(user_id,full_name,sex,department,level,matric_type)
-       VALUES($1,'Test Finance Officer','Female','Economics','400','matriculation')`,
-      [financeId]
-    );
+    // This finance-only test account deliberately has no student profile,
+    // so it must not be included in the frozen voter roll.
     await pool.query(
       "INSERT INTO admin_roles(user_id,role,granted_by) VALUES($1,'finance_admin',$2)",
       [financeId,adminId]
