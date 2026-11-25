@@ -287,6 +287,36 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const restoredAdminAccess = await admin('/api/admin/me');
     assert.equal(restoredAdminAccess.status,200,'restored administrator should regain privileged access');
 
+    // Concurrent attempts to demote both super administrators must not remove
+    // the final super-admin safeguard.
+    const secondAdminHash = await argon2.hash('Second-Admin-Test-Password-2026',{type:argon2.argon2id});
+    const secondAdmin = await pool.query(
+      `INSERT INTO users(matric_number,phone_e164,password_hash)
+       VALUES('ADMIN-TEST-002','+2348010000005',$1) RETURNING id`,
+      [secondAdminHash]
+    );
+    const secondAdminId = secondAdmin.rows[0].id;
+    await pool.query(
+      `INSERT INTO student_profiles(user_id,full_name,sex,department,level,matric_type)
+       VALUES($1,'Second Test Administrator','Female','Sociology','500','matriculation')`,
+      [secondAdminId]
+    );
+    await pool.query(
+      "INSERT INTO admin_roles(user_id,role,granted_by) VALUES($1,'super_admin',$2)",
+      [secondAdminId,adminId]
+    );
+    const concurrentDemotions = await Promise.all([
+      admin(`/api/admin/administrators/${adminId}/roles`,{method:'POST',body:{role:'moderator'}}),
+      admin(`/api/admin/administrators/${secondAdminId}/roles`,{method:'POST',body:{role:'moderator'}})
+    ]);
+    assert.equal(concurrentDemotions.filter(x=>x.status===200).length,1,
+      'only one of two concurrent super-admin demotions may succeed');
+    const remainingSuperAdmins = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM admin_roles WHERE role='super_admin'"
+    );
+    assert.equal(remainingSuperAdmins.rows[0].count,1,
+      'concurrent role changes must preserve exactly one super administrator');
+
   } finally {
     if (server) await new Promise(resolve=>server.close(resolve));
     await pool.query(`TRUNCATE ${tables.join(',')} RESTART IDENTITY CASCADE`);
