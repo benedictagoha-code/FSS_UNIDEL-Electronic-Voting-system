@@ -130,33 +130,66 @@ router.get('/me', async (req, res, next) => {
 router.post('/password-reset/request', resetLimiter, async (req, res, next) => {
   const parsed = resetRequestSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Enter a valid matriculation/registration number.' });
+
+  let pendingDelivery = null;
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query('BEGIN');
+    const result = await client.query(
       `SELECT id, phone_e164 FROM users
-       WHERE matric_number = $1 AND account_status = 'active'`,
+       WHERE matric_number = $1 AND account_status = 'active'
+       FOR UPDATE`,
       [parsed.data.matricNumber]
     );
-    // Same public response whether or not an account exists, to prevent account enumeration.
+
+    // Keep the public response identical for unknown, inactive and rate-limited accounts.
     if (result.rowCount) {
       const user = result.rows[0];
-      const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-      const verifier = otpVerifier(user.id, code);
-      await pool.query(
-        `INSERT INTO password_reset_otps (user_id, otp_verifier, expires_at)
-         VALUES ($1, $2, NOW() + INTERVAL '5 minutes')`,
-        [user.id, verifier]
+      const recent = await client.query(
+        `SELECT COUNT(*)::int AS count FROM password_reset_otps
+         WHERE user_id=$1 AND created_at > NOW() - INTERVAL '15 minutes'`,
+        [user.id]
       );
-      try {
-        await sendPasswordResetOtp({ to: user.phone_e164, code });
-      } catch (smsError) {
-        // No OTP is returned to the browser or written to logs.
-        console.error('Password-reset SMS delivery unavailable:', smsError.message);
+
+      // Limit reset-code generation per account as well as per source IP.
+      if (recent.rows[0].count < 3) {
+        await client.query(
+          `UPDATE password_reset_otps SET consumed_at=NOW()
+           WHERE user_id=$1 AND consumed_at IS NULL`,
+          [user.id]
+        );
+        const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+        const verifier = otpVerifier(user.id, code);
+        const inserted = await client.query(
+          `INSERT INTO password_reset_otps (user_id, otp_verifier, expires_at)
+           VALUES ($1, $2, NOW() + INTERVAL '5 minutes')
+           RETURNING id`,
+          [user.id, verifier]
+        );
+        pendingDelivery = { id: inserted.rows[0].id, userId: user.id, phone: user.phone_e164, code };
       }
     }
-    return res.status(202).json({ message: 'If the account is eligible, a password-reset code will be sent to its registered phone number.' });
-  } catch (error) { return next(error); }
-});
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    return next(error);
+  } finally {
+    client.release();
+  }
 
+  if (pendingDelivery) {
+    try {
+      await sendPasswordResetOtp({ to: pendingDelivery.phone, code: pendingDelivery.code });
+    } catch (smsError) {
+      // Remove the undelivered code so it cannot be used if a provider partially fails.
+      await pool.query('DELETE FROM password_reset_otps WHERE id=$1 AND user_id=$2',
+        [pendingDelivery.id, pendingDelivery.userId]);
+      console.error('Password-reset SMS delivery unavailable.');
+    }
+  }
+
+  return res.status(202).json({ message: 'If the account is eligible, a password-reset code will be sent to its registered phone number.' });
+});
 router.post('/password-reset/complete', resetLimiter, async (req, res, next) => {
   const parsed = resetCompleteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Enter the matriculation/registration number, six-digit code and a valid new password.' });
