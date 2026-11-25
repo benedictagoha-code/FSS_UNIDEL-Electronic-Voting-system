@@ -98,6 +98,24 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     assert.equal(loginAdmin.status,200,'administrator should sign in');
 
+    const unprofiledAdminCandidate = await pool.query(
+      `INSERT INTO users(matric_number,phone_e164,password_hash)
+       VALUES('NO-PROFILE-ADMIN-001','+2348010000093',$1) RETURNING id`,
+      [await argon2.hash('No-Profile-Password-2026', { type: argon2.argon2id })]
+    );
+    const cannotGrantRoleWithoutStudentProfile = await admin(
+      `/api/admin/administrators/${unprofiledAdminCandidate.rows[0].id}/roles`,
+      {method:'POST',body:{role:'moderator'}}
+    );
+    assert.equal(cannotGrantRoleWithoutStudentProfile.status,404,
+      'administrator roles must only be granted to active student accounts');
+    const cannotDemoteLastSuperAdmin = await admin(
+      `/api/admin/administrators/${adminId}/roles`,
+      {method:'POST',body:{role:'election_admin'}}
+    );
+    assert.equal(cannotDemoteLastSuperAdmin.status,409,
+      'the last super administrator must not be demoted through role reassignment');
+
     // Finance administrators must not inherit election-management or audit powers.
     const financeHash = await argon2.hash('Finance-Test-Password-2026', { type: argon2.argon2id });
     const financeUser = await pool.query(
@@ -122,6 +140,11 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       method:'POST', body:{ matricNumber:'FINANCE-TEST-001', password:'Finance-Test-Password-2026' }
     });
     assert.equal(financeLogin.status,200,'finance administrator should sign in');
+    const financeCannotGrantRoles = await finance(
+      `/api/admin/administrators/${financeId}/roles`,
+      {method:'POST',body:{role:'super_admin'}}
+    );
+    assert.equal(financeCannotGrantRoles.status,403,'finance administrators must not grant administrator roles');
     const financeCannotCreateElection = await finance('/api/admin/elections',{method:'POST',body:{title:'Unauthorised election'}});
     assert.equal(financeCannotCreateElection.status,403,'finance role must not create elections');
     const financeCannotReadAudit = await finance('/api/admin/audit-logs');
