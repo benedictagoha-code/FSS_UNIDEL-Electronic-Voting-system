@@ -354,6 +354,11 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'withdrawal must be recorded as a status transition, not deletion');
     assert.ok(retainedWithdrawal.rows[0].payment_id,
       'withdrawal must preserve the associated payment record');
+    const withdrawnPaymentDecision = await finance(`/api/admin/nomination-payments/${retainedWithdrawal.rows[0].payment_id}/decision`,{
+      method:'POST',body:{decision:'verified',reason:'Attempt to verify payment after candidate withdrawal.'}
+    });
+    assert.equal(withdrawnPaymentDecision.status,409,
+      'finance must not newly verify a payment after its nomination has been withdrawn');
     assert.equal(retainedWithdrawal.rows[0].action,'nomination.withdrawn',
       'candidate withdrawal must create an audit event');
     assert.equal(retainedWithdrawal.rows[0].metadata.reason,
