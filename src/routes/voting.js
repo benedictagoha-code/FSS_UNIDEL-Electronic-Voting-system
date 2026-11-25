@@ -272,10 +272,12 @@ router.get('/:electionId/results', async (req, res, next) => {
         `SELECT o.id AS office_id,o.title AS office_title,n.id AS nomination_id,s.full_name,s.department,
           COUNT(bs.id)::int AS votes
          FROM election_offices o
-         LEFT JOIN nominations n ON n.office_id=o.id AND n.eligibility_status='approved'
+         LEFT JOIN nominations n ON n.office_id=o.id AND n.election_id=o.election_id
+           AND n.eligibility_status='approved'
          LEFT JOIN users u ON u.id=n.candidate_user_id
          LEFT JOIN student_profiles s ON s.user_id=u.id
-         LEFT JOIN ballot_selections bs ON bs.office_id=o.id AND bs.candidate_nomination_id=n.id
+         LEFT JOIN ballot_selections bs ON bs.office_id=o.id
+           AND bs.election_id=o.election_id AND bs.candidate_nomination_id=n.id
          WHERE o.election_id=$1
          GROUP BY o.id,o.title,n.id,s.full_name,s.department
          ORDER BY o.title,votes DESC,s.full_name`,
