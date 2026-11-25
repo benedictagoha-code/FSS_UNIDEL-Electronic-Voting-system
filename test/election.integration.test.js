@@ -293,8 +293,13 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
       'results publication must appear in the audit register');
     assert.ok(auditRegister.body.logs.some(row=>row.action==='voting.ballot_cast'),
       'ballot participation event should be auditable');
-    assert.ok(!JSON.stringify(auditRegister.body).includes(candidateNomination),
-      'audit register must not expose ballot candidate selections');
+    const ballotAudit = auditRegister.body.logs.find(row=>row.action==='voting.ballot_cast');
+    assert.ok(ballotAudit,'accepted ballot should have a participation audit event');
+    assert.equal(ballotAudit.entity_type,'election','ballot audit event must identify only the election');
+    assert.equal(ballotAudit.entity_id,electionId,'ballot audit event must not identify a selected candidate');
+    assert.deepEqual(ballotAudit.metadata,{},'ballot audit event must not contain candidate selections');
+    assert.ok(!JSON.stringify(ballotAudit).includes(candidateNomination),
+      'ballot audit event must not expose a candidate nomination identifier');
     const candidateAuditAccess = await candidate('/api/admin/audit-logs');
     assert.equal(candidateAuditAccess.status,403,'ordinary students must not access the audit register');
     const protectedAuditRow = await pool.query(
