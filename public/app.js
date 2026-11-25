@@ -355,7 +355,7 @@ async function showElectionResults(electionId,quiet=false){
    candidates.forEach(c=>{const p=document.createElement('p');p.textContent=c.full_name+' ('+c.department+'): '+c.votes+' vote(s)';section.append(p);});
    box.append(section);
   }
-  box.scrollIntoView({behavior:'smooth',block:'start'});
+  if(!quiet)box.scrollIntoView({behavior:'smooth',block:'start'});
  }catch(error){box.textContent=error.message;}
 }
 // Published results are refreshed automatically. Open elections never expose
