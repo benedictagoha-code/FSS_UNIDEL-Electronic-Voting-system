@@ -201,7 +201,21 @@ async function loadNominationCentre() {
    const row=document.createElement('div');row.className='nomination-row';
    const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small');
    title.textContent=n.office_title;meta.textContent=n.election_title+' · '+n.reference+' · Payment: '+n.verification_status+' · Eligibility: '+n.eligibility_status;info.append(title,meta);
-   const a=document.createElement('a');a.className='download-link';a.href='/api/nominations/'+encodeURIComponent(n.id)+'/form.pdf';a.textContent='Download PDF form';row.append(info,a);mine.append(row);
+   const actions=document.createElement('div');actions.className='nomination-actions';
+   const a=document.createElement('a');a.className='download-link';a.href='/api/nominations/'+encodeURIComponent(n.id)+'/form.pdf';a.textContent='Download PDF form';actions.append(a);
+   const now=Date.now(),windowOpen=n.election_status==='nominations_open'&&(!n.nomination_opens_at||new Date(n.nomination_opens_at).getTime()<=now)&&(!n.nomination_closes_at||new Date(n.nomination_closes_at).getTime()>=now);
+   if(windowOpen&&['pending','approved'].includes(n.eligibility_status)){
+    const withdraw=document.createElement('button');withdraw.type='button';withdraw.className='secondary';withdraw.textContent='Withdraw nomination';
+    withdraw.addEventListener('click',async()=>{
+     const reason=prompt('Why are you withdrawing this nomination? (Minimum 10 characters)');
+     if(!reason||reason.trim().length<10)return;
+     withdraw.disabled=true;
+     try{await api('/api/nominations/'+encodeURIComponent(n.id)+'/withdraw',{method:'POST',body:JSON.stringify({reason:reason.trim()})});showNotice('Nomination withdrawn. Its payment and audit history have been retained.');await loadNominationCentre();}
+     catch(err){showNotice(err.message,'error');withdraw.disabled=false;}
+    });
+    actions.append(withdraw);
+   }
+   row.append(info,actions);mine.append(row);
   });
  }catch(err){opportunities.textContent=err.message;mine.textContent='Unable to load nomination records.';}
 }
