@@ -476,7 +476,7 @@ $('#openVotingForm')?.addEventListener('submit',async e=>{
 });
 $('#closeVotingForm')?.addEventListener('submit',async e=>{
  e.preventDefault();const d=formData(e.currentTarget);
- try{await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-voting',{method:'POST',body:'{}'});showNotice('Voting closed.');e.currentTarget.reset();await loadAdminElections();}
+ try{const payload=d.reason?.trim()?{reason:d.reason.trim()}:{};await api('/api/admin/elections/'+encodeURIComponent(d.electionId)+'/close-voting',{method:'POST',body:JSON.stringify(payload)});showNotice('Voting closed.');e.currentTarget.reset();await loadAdminElections();}
  catch(error){showNotice(error.message,'error');}
 });
 $('#publishResultsForm')?.addEventListener('submit',async e=>{
