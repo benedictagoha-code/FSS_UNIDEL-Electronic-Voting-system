@@ -367,11 +367,5 @@ router.get('/elections', requireAdmin(['super_admin','election_admin','results_o
 });
 
 
-router.get('/elections', requireAdmin(['super_admin','election_admin','results_officer']), async(req,res,next)=>{
-  try{
-    const r=await pool.query("SELECT id,title,status,nomination_opens_at,nomination_closes_at,voting_opens_at,voting_closes_at FROM elections ORDER BY created_at DESC");
-    res.json({elections:r.rows});
-  }catch(e){next(e);}
-});
 
 export default router;
