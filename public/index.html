@@ -143,11 +143,14 @@
           <div id="nominationOpportunities"><p class="muted">Loading available offices…</p></div>
           <h3 class="subheading">My nominations</h3><div id="myNominations"><p class="muted">Loading your nomination records…</p></div>
         </section>
-        <div class="panel announcement">
-          <h3>Election centre</h3>
-          <p>Election notices, approved candidate lists, nomination forms and voting access will appear here when the relevant election is configured and opened by the Faculty election administrators.</p>
-          <span class="status-pill">Election services are being prepared</span>
-        </div>
+        <section class="panel voting-panel">
+          <div class="dashboard-head"><div><p class="eyebrow">SECRET BALLOT</p><h3>Voting centre</h3></div><button id="refreshVoting" class="secondary" type="button">Refresh</button></div>
+          <p class="muted">Your eligibility and participation are checked through your student account. Your ballot choices are stored separately from your identity.</p>
+          <div id="votingElections"><p class="muted">Checking for open elections…</p></div>
+          <div id="ballotContainer" hidden></div>
+          <h3 class="subheading">Published election results</h3><div id="publishedResults"><p class="muted">Loading published results…</p></div>
+          <div id="resultsDetail" hidden></div>
+        </section>
         <section id="adminPanel" class="panel admin-panel" hidden>
           <div class="dashboard-head"><div><p class="eyebrow">RESTRICTED ACCESS</p><h3>Administrator tools</h3></div><span class="status-pill">Authorised administrator</span></div>
           <section id="electionAdminTools" class="admin-tools" hidden>
@@ -168,6 +171,19 @@
               <input name="electionId" required placeholder="Election ID to open">
               <button class="secondary" type="submit">Open nominations</button>
             </form>
+            <h4>Election lifecycle controls</h4>
+            <div id="adminElectionList" class="election-admin-list"><p class="muted">Loading elections…</p></div>
+            <form id="closeNominationsForm" class="admin-form"><input name="electionId" required placeholder="Election ID"><button class="secondary" type="submit">Close nominations</button></form>
+            <form id="openVotingForm" class="admin-form">
+              <input name="electionId" required placeholder="Election ID">
+              <div class="two-col"><label>Voting opens<input name="opensAt" type="datetime-local" required></label><label>Voting closes<input name="closesAt" type="datetime-local" required></label></div>
+              <button class="secondary" type="submit">Schedule and open voting</button>
+            </form>
+            <form id="closeVotingForm" class="admin-form"><input name="electionId" required placeholder="Election ID"><button class="secondary" type="submit">Close voting</button></form>
+          </section>
+          <section id="resultsAdminTools" class="admin-tools" hidden>
+            <h4>Results publication</h4>
+            <form id="publishResultsForm" class="admin-form"><input name="electionId" required placeholder="Closed election ID"><button class="secondary" type="submit">Publish results</button></form>
           </section>
           <section id="nominationAdminTools" class="admin-tools" hidden>
             <div class="dashboard-head"><h4>Candidate eligibility review</h4><button id="refreshEligibility" class="secondary" type="button">Refresh</button></div>
