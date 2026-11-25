@@ -69,8 +69,14 @@ test('Termii adapter rejects provider errors without exposing provider response 
   }
 });
 
-test('Termii adapter rejects malformed OTPs and insecure base URLs', async () => {
+test('Termii adapter rejects malformed OTPs, missing base URL and insecure base URLs', async () => {
   setTermiiEnv();
+  delete process.env.TERMII_BASE_URL;
+  await assert.rejects(
+    sendPasswordResetOtp({ to: '+2348012345678', code: '123456' }),
+    /TERMII_BASE_URL is not configured/
+  );
+  process.env.TERMII_BASE_URL = 'https://api.ng.termii.com';
   await assert.rejects(
     sendPasswordResetOtp({ to: '+2348012345678', code: '12345' }),
     /six-digit/
