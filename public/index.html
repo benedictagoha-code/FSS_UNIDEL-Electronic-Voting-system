@@ -200,6 +200,16 @@
             <div class="dashboard-head"><h4>Payment verification queue</h4><button id="refreshPayments" class="secondary" type="button">Refresh</button></div>
             <div id="paymentQueue"><p class="muted">Loading payment records…</p></div>
           </section>
+          <section id="voterEligibilityTools" class="admin-tools" hidden>
+            <h4>Election voter eligibility</h4>
+            <p class="muted">Active student accounts are eligible by default. You may exclude or restore an individual student for a specific election. Changes are locked once voting opens.</p>
+            <form id="voterElectionForm" class="search-row">
+              <select name="electionId" id="voterEligibilityElection" required><option value="">Select election</option></select>
+              <input name="search" placeholder="Search name, student number, department or level">
+              <button class="secondary" type="submit">Load voters</button>
+            </form>
+            <div id="voterEligibilityList" class="user-results"><p class="muted">Select an election to review voter eligibility.</p></div>
+          </section>
           <h4>Student account management</h4>
           <form id="userSearchForm" class="search-row">
             <input name="search" placeholder="Search name, student number, department or level">
