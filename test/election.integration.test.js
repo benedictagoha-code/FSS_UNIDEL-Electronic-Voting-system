@@ -98,6 +98,33 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     });
     assert.equal(loginAdmin.status,200,'administrator should sign in');
 
+    // Finance administrators must not inherit election-management or audit powers.
+    const financeHash = await argon2.hash('Finance-Test-Password-2026', { type: argon2.argon2id });
+    const financeUser = await pool.query(
+      `INSERT INTO users(matric_number,phone_e164,password_hash)
+       VALUES('FINANCE-TEST-001','+2348010000091',$1) RETURNING id`,
+      [financeHash]
+    );
+    const financeId = financeUser.rows[0].id;
+    await pool.query(
+      `INSERT INTO student_profiles(user_id,full_name,sex,department,level,matric_type)
+       VALUES($1,'Test Finance Officer','Female','Economics','400','matriculation')`,
+      [financeId]
+    );
+    await pool.query(
+      "INSERT INTO admin_roles(user_id,role,granted_by) VALUES($1,'finance_admin',$2)",
+      [financeId,adminId]
+    );
+    const finance = client();
+    const financeLogin = await finance('/api/auth/login', {
+      method:'POST', body:{ matricNumber:'FINANCE-TEST-001', password:'Finance-Test-Password-2026' }
+    });
+    assert.equal(financeLogin.status,200,'finance administrator should sign in');
+    const financeCannotCreateElection = await finance('/api/admin/elections',{method:'POST',body:{title:'Unauthorised election'}});
+    assert.equal(financeCannotCreateElection.status,403,'finance role must not create elections');
+    const financeCannotReadAudit = await finance('/api/admin/audit-logs');
+    assert.equal(financeCannotReadAudit.status,403,'finance role must not read the super-admin audit register');
+
     const register = async (record) => {
       const response = await fetch(base + '/api/auth/register', {
         method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(record)
