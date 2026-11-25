@@ -5,6 +5,7 @@ import connectPgSimple from 'connect-pg-simple';
 import { rateLimit } from 'express-rate-limit';
 import { pool } from './db.js';
 import authRoutes from './routes/auth.js';
+import adminRoutes from './routes/admin.js';
 
 const app = express();
 const PgSession = connectPgSimple(session);
@@ -39,6 +40,7 @@ app.get('/api/health', async (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found.' }));
 app.use((error, _req, res, _next) => {
