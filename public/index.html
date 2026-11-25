@@ -179,7 +179,7 @@
               <div class="two-col"><label>Voting opens<input name="opensAt" type="datetime-local" required></label><label>Voting closes<input name="closesAt" type="datetime-local" required></label></div>
               <button class="secondary" type="submit">Schedule and open voting</button>
             </form>
-            <form id="closeVotingForm" class="admin-form"><input name="electionId" required placeholder="Election ID"><button class="secondary" type="submit">Close voting</button></form>
+            <form id="closeVotingForm" class="admin-form"><input name="electionId" required placeholder="Election ID"><textarea name="reason" minlength="10" maxlength="1000" placeholder="Reason required only when closing before the scheduled end (minimum 10 characters)"></textarea><button class="secondary" type="submit">Close voting</button></form>
           </section>
           <section id="resultsAdminTools" class="admin-tools" hidden>
             <h4>Results publication</h4>
