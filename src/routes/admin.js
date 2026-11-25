@@ -186,6 +186,12 @@ router.post('/users/:userId/moderation', requireAdmin(['super_admin','moderator'
       return res.status(404).json({ error: 'Student account not found.' });
     }
     const targetRole = await client.query("SELECT role FROM admin_roles WHERE user_id=$1",[req.params.userId]);
+    // Moderators may act on student accounts, but administrator accounts can
+    // only be moderated by a super administrator.
+    if (targetRole.rowCount && !req.adminRoles.includes('super_admin')) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: 'Only a super administrator may moderate another administrator account.' });
+    }
     if (['suspend','deactivate'].includes(parsed.data.action) &&
         targetRole.rowCount && targetRole.rows[0].role==='super_admin' && superAdmins.rowCount<=1) {
       await client.query('ROLLBACK');
