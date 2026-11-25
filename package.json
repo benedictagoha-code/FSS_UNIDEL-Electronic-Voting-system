@@ -4,12 +4,15 @@
   "private": true,
   "description": "Faculty-wide electronic voting platform for the Faculty of the Social Sciences, UNIDEL.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "db:migrate": "node scripts/migrate.js",
-    "test": "node --test"
+    "test": "node --test",
+    "admin:bootstrap": "node scripts/bootstrap-admin.js"
   },
   "dependencies": {
     "argon2": "^0.41.1",
