@@ -204,7 +204,7 @@ async function loadNominationCentre() {
  const opportunities=$('#nominationOpportunities'), mine=$('#myNominations');
  if(!opportunities||!mine)return;
  try{
-  const [available,submitted]=await Promise.all([api('/api/nominations/open'),api('/api/nominations/mine')]);
+  const [available,submitted,paymentInfo]=await Promise.all([api('/api/nominations/open'),api('/api/nominations/mine'),api('/api/nominations/payment-instructions')]);\n  const instructionBox=$('#candidatePaymentInstructions');instructionBox.replaceChildren();\n  if(paymentInfo.paymentInstructions){const p=paymentInfo.paymentInstructions;const title=document.createElement('strong');title.textContent='Payment account: '+p.bank_name;const account=document.createElement('p');account.textContent='Account name: '+p.account_name+' · Account number: '+p.account_number;const notes=document.createElement('small');notes.textContent=p.payment_instructions||'Use the correct nomination fee for the selected office and retain your transaction reference.';instructionBox.append(title,account,notes);}else{instructionBox.textContent='Payment account details have not yet been published by the Faculty administrators.';}
   opportunities.replaceChildren();
   if(!available.opportunities.length){const p=document.createElement('p');p.className='muted';p.textContent='There are no open nomination opportunities at this time.';opportunities.append(p);}
   available.opportunities.forEach(item=>{
