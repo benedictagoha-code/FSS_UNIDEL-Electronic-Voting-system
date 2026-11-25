@@ -399,7 +399,7 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
         method:'POST',body:{decision:'verified',reason:'Mock payment verified for integration test.'}
       }),
       admin(`/api/admin/nomination-payments/${payment.id}/decision`,{
-        method:'POST',body:{decision:'rejected',reason:'Conflicting concurrent decision test.'}
+        method:'POST',body:{decision:'verified',reason:'Duplicate concurrent verification test.'}
       })
     ]);
     assert.equal(simultaneousPaymentDecisions.filter(x=>x.status===200).length,1,
@@ -409,6 +409,12 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
     const paymentStatus = await pool.query('SELECT verification_status FROM nomination_payments WHERE id=$1',[payment.id]);
     assert.equal(paymentStatus.rows[0].verification_status,'verified',
       'the accepted payment verification must remain authoritative');
+
+    const reversedPaymentDecision = await finance(`/api/admin/nomination-payments/${payment.id}/decision`,{
+      method:'POST',body:{decision:'rejected',reason:'Attempt to reverse a completed verification.'}
+    });
+    assert.equal(reversedPaymentDecision.status,409,
+      'a completed payment verification must not be reversed by a later review');
 
     const nominationDecision = await admin(`/api/admin/nominations/${nominationId}/eligibility`,{
       method:'POST',body:{decision:'approved',reason:'Mock candidate meets test requirements.'}
