@@ -220,7 +220,7 @@ Election administrators must close nominations before scheduling voting. Every o
 
 ## Deployment preparation
 
-A production Dockerfile and deployment runbook are provided in `Dockerfile` and `docs/DEPLOYMENT.md`. The application is not yet deployed: it still requires a selected hosting provider, a production PostgreSQL database, HTTPS/domain configuration, server secrets, Termii account activation for SMS password resets, and one-time super-administrator bootstrap. Do not treat the GitHub repository or passing CI as a live election service.
+A production Dockerfile, Render Blueprint (`render.yaml`) and Render-specific deployment runbook are provided in `Dockerfile`, `render.yaml` and `docs/DEPLOYMENT.md`. The Blueprint defines a Frankfurt web service and managed PostgreSQL database, CI-gated auto-deploys, private database access and a pre-deploy migration command. The application is not yet deployed: it still requires a selected hosting provider, a production PostgreSQL database, HTTPS/domain configuration, server secrets, Termii account activation for SMS password resets, and one-time super-administrator bootstrap. Do not treat the GitHub repository or passing CI as a live election service.
 
 ## Build checks
 
