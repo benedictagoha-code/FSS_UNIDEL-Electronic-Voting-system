@@ -40,9 +40,10 @@
 - A candidate may submit multiple nominations where the election rules permit.
 - A candidate/office/election combination may be nominated only once.
 - Each nomination has its own reference and downloadable form.
-- Payment verification is separate from nomination eligibility and approval.
-- Payment account details and fees are administrator-configurable.
-- Manual payment evidence is private; verification decisions are audited.
+- Payment verification is separate from nomination eligibility and approval. Eligibility approval requires a verified payment and is recorded as a separate, reasoned decision.
+- Payment account details and fees are administrator-configurable. Payment-instruction changes are committed with an audit event; audit metadata stores only the final four account-number digits, never the full account number.
+- Each payment transaction reference is unique case-insensitively after trimming whitespace, preventing one bank/provider reference from being reused for multiple nominations.
+- Manual payment evidence is private. Payment decisions lock the payment row, allow only one transition from pending, and commit the decision and audit event together. Concurrent conflicting reviews cannot both succeed.
 
 ## Secret ballot
 - Enforce eligibility and one accepted ballot per eligible voter/election in server-side code and database constraints.
