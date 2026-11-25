@@ -47,7 +47,7 @@ A faculty-wide platform for managing student registration, candidate nominations
 
 ## Security and deployment principles
 - All authoritative validation and election actions must run on a trusted server, never only in browser JavaScript.
-- Use HTTPS, secure session handling, rate limits, CSRF protection where applicable, input validation and least-privilege database access.
+- Use HTTPS, secure session handling, rate limits, same-origin checks on state-changing requests, input validation and least-privilege database access. In production behind a TLS-terminating reverse proxy, configure `TRUST_PROXY_HOPS` to the exact number of trusted proxy hops (default 1).
 - Use parameterised database queries and protect secrets in deployment environment variables; never commit credentials, API keys, OTP secrets or production data.
 - Password reset OTPs must be short-lived, single-use, rate-limited and stored only as secure verifiers.
 - Preserve append-only audit records for sensitive administrative actions.
