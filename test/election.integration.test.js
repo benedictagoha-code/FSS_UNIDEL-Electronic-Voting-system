@@ -18,7 +18,7 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
   assert.match(databaseName, /_test$/, 'integration tests may only run against a database whose name ends in _test');
 
   const tables = [
-    'audit_logs','moderation_actions','election_voter_eligibility','voting_authorisations',
+    'audit_logs','moderation_actions','election_voter_snapshots','election_voter_eligibility','voting_authorisations',
     'ballot_selections','ballots','voter_participation','nomination_documents',
     'nomination_payments','nominations','election_offices','elections',
     'nomination_payment_settings','password_reset_otps','admin_roles','student_profiles','users'
@@ -254,7 +254,15 @@ test('mock election: registration, nomination, payment, eligibility, secret ball
 
     const participation = await admin(`/api/admin/elections/${electionId}/participation`);
     assert.equal(participation.status,200,'admin should view aggregate turnout');
+    assert.equal(participation.body.eligibleVoters,2,
+      'turnout denominator must use the frozen active eligible voter roll');
     assert.ok(participation.body.participatingVoters>=1);
+    const voterSnapshot = await pool.query(
+      'SELECT COUNT(*)::int AS count FROM election_voter_snapshots WHERE election_id=$1',
+      [electionId]
+    );
+    assert.equal(voterSnapshot.rows[0].count,2,
+      'voting opening must snapshot active eligible students and exclude the administratively excluded voter');
     assert.ok(!JSON.stringify(participation.body).includes(candidateNomination),'turnout report must not expose ballot selections');
 
     const hiddenResults = await candidate(`/api/voting/${electionId}/results`);
