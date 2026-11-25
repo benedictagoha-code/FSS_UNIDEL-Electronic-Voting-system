@@ -66,8 +66,9 @@ The implementation reduces ordinary application-level linkage. It does not claim
 
 ## Election-specific voter eligibility and participation
 - Active accounts are eligible by default unless an election-specific exclusion is recorded.
-- Exclusions require an administrator reason and are audited. Eligibility changes are prohibited after voting opens.
-- The voting service checks eligibility server-side at ballot retrieval, authorisation and submission; inactive, suspended or deactivated accounts cannot vote.
+- Exclusions require an administrator reason and are audited. Eligibility changes are locked as soon as the voting schedule is activated, before the scheduled opening time.
+- At schedule activation, the system snapshots the active, eligible student roll. The snapshot fixes the turnout denominator and prevents later account-status changes from rewriting the historical eligible-voter count.
+- The voting service checks the frozen voter roll and current account status at ballot retrieval, authorisation and submission; inactive, suspended or deactivated accounts cannot cast a ballot.
 - Participation reports expose only aggregate eligible and participating counts, including department totals. They do not expose ballot choices.
 - Composite database constraints bind each selection to its ballot, election, office and nomination, preventing cross-election or cross-office references.
 - Ballot and participation records currently retain timestamps. Separation of tables reduces ordinary application-level linkage but does not provide cryptographic unlinkability against privileged database or server operators.
