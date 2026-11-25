@@ -391,16 +391,36 @@ router.post('/elections/:id/open-voting', requireAdmin(['super_admin','election_
     res.json({message:'Voting has been scheduled and opened.',opensAt:p.data.opensAt,closesAt:p.data.closesAt});
   }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
+const closeVotingSchema = z.object({
+  reason: z.string().trim().min(10).max(1000).optional()
+});
 router.post('/elections/:id/close-voting', requireAdmin(['super_admin','election_admin']), async(req,res,next)=>{
+  const parsed=closeVotingSchema.safeParse(req.body||{});
+  if(!parsed.success)return res.status(400).json({error:'An early-close reason must contain at least 10 characters.'});
   const client=await pool.connect();
   try{
     await client.query('BEGIN');
-    const r=await client.query("UPDATE elections SET status='closed' WHERE id=$1 AND status='voting_open' RETURNING id,title",
-      [req.params.id]);
-    if(!r.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'This election is not currently open for voting.'});}
-    await client.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id) VALUES($1,'election.voting_closed','election',$2)",[req.session.userId,req.params.id]);
+    const election=await client.query(
+      "SELECT id,title,voting_closes_at,(voting_closes_at>NOW()) AS before_scheduled_close FROM elections WHERE id=$1 AND status='voting_open' FOR UPDATE",
+      [req.params.id]
+    );
+    if(!election.rowCount){await client.query('ROLLBACK');return res.status(409).json({error:'This election is not currently open for voting.'});}
+    const early=Boolean(election.rows[0].before_scheduled_close);
+    if(early&&!parsed.data.reason){
+      await client.query('ROLLBACK');
+      return res.status(409).json({error:'Voting cannot be closed before its scheduled end without a documented reason.'});
+    }
+    await client.query("UPDATE elections SET status='closed' WHERE id=$1",[req.params.id]);
+    await client.query(
+      "INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,metadata) VALUES($1,'election.voting_closed','election',$2,$3::jsonb)",
+      [req.session.userId,req.params.id,JSON.stringify({
+        earlyClose:early,
+        scheduledCloseAt:election.rows[0].voting_closes_at,
+        reason:early?parsed.data.reason:null
+      })]
+    );
     await client.query('COMMIT');
-    res.json({election:r.rows[0],message:'Voting has been closed.'});
+    res.json({election:{id:election.rows[0].id,title:election.rows[0].title},earlyClose:early,message:'Voting has been closed.'});
   }catch(e){await client.query('ROLLBACK');next(e);}finally{client.release();}
 });
 router.post('/elections/:id/publish-results', requireAdmin(['super_admin','results_officer']), async(req,res,next)=>{
